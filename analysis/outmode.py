@@ -6,7 +6,7 @@ from taguri.index import Index
 from taguri.run import get_index
 from evalkit import load_questions, load_split, score_run, aggregate
 
-def rerank(run_dir, ds, split, tau, idx_dir="/tmp/sag2poc-idx"):
+def rerank(run_dir, ds, split, tau, idx_dir="/tmp/taguri-idx"):
     lock = json.load(open("results/thresholds.lock.json"))
     ix = get_index(ds, "data", idx_dir, Analyzer(), lock["weights"], log=lambda *_: None)
     qs = load_questions(ds); qids = load_split(ds, split)

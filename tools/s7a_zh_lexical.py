@@ -1,7 +1,7 @@
 """S7a: choose the Chinese lexical layer on DRCD (CPU only). Runs every combination on the Traditional and the
 Simplified copy and writes results/s7a-zh-lexical.json.
 
-  python tools/s7a_zh_lexical.py --data /tmp/sag2poc-data --big-dict /path/to/dict.txt.big
+  python tools/s7a_zh_lexical.py --data /tmp/taguri-data --big-dict /path/to/dict.txt.big
 """
 import argparse
 import json

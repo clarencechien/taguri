@@ -10,7 +10,7 @@
 | `data/musique/`、`data/2wikimultihopqa/` | 正規化後的語料、題目、切分名單 |
 | `data/multihop-rag/` | MultiHop-RAG 的語料（已分段）、題目、300 題抽樣名單 |
 | `reference/` | 各參考方法的逐題分數（只有題號和指標），說明在 `reference/README.md` |
-| `SAG2POC-handoff.md` | 交接文件 v0.5 |
+| `TAGURI-handoff.md` | 交接文件 v0.5 |
 
 ## 2. 資料
 
@@ -253,7 +253,7 @@ B0 每題約 334 次判斷（第 90 百分位 337），三個題組都一樣。�
 ## 7. 還沒做、要留意的事
 
 - **花費是用容器時間乘單價估的，沒有和 Modal 帳單核對。** Session A 四次執行合計約 $3.98。兩個 session 共用同一個 Modal 帳號，開工前先看一次累計花費。
-- Session A 用的 Modal app 是 `sag2poc-a-baseline`、Volume 是 `sag2poc-a-results`。Session B 請用 `sag2poc-b-*`。
+- Session A 用的 Modal app 是 `sag2poc-a-baseline`、Volume 是 `sag2poc-a-results`。Session B 請用 `taguri-b-*`。
 - Jev 的各階段分數（`sag2_jev_h0`、`sag2_jev_h1`）是上游紀錄裡的數值；其餘 Jev、Jina 的分數是用 `evalkit` 從上游的檢索名單重算的，和上游紀錄逐題一致。
 - `reference/` 裡沒有 Qwen3-Reranker-0.6B：上游只留了總平均，沒有逐題紀錄。`sag2_qwen3rerank_302` 是 302 平台的 `qwen3-rerank`，是另一個模型。
 - MultiHop-RAG 沒有 SAG2＋Jev 的紀錄，只能和 B0、BM25 比。

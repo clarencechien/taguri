@@ -1,6 +1,6 @@
 """Convert DRCD (official release, github.com/DRCKnowledgeTeam/DRCD) to the §5.1 layout for S7a.
 
-  python tools/drcd_convert.py --src /path/to/DRCD --out /tmp/sag2poc-data
+  python tools/drcd_convert.py --src /path/to/DRCD --out /tmp/taguri-data
 
 Writes <out>/drcd-tw/ (original Traditional Chinese) and <out>/drcd-cn/ (OpenCC tw2sp).
 Corpus: every paragraph of training + dev + test (a larger pool separates the tokenisers better than the

@@ -40,4 +40,4 @@ $0（只用 CPU）。
 | Session B | $48 | 約 $3.32 |
 | 全案 | $60 | 約 $7.30 |
 
-每次執行後都確認過 `modal app list` 沒有殘留的 `sag2poc-b-*` app。Volume：`sag2poc-b-results`（結果、判斷快取、EG2 權重與向量）。
+每次執行後都確認過 `modal app list` 沒有殘留的 `taguri-b-*` app。Volume：`taguri-b-results`（結果、判斷快取、EG2 權重與向量）。

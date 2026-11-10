@@ -2,7 +2,7 @@
 
   export MODAL_TOKEN_ID=$modal MODAL_TOKEN_SECRET=$modal_secret
   modal run --detach modal_taguri.py --stage s6 --jobs '[{"config":"N1","dataset":"musique","split":"dev"}]'
-  modal volume get sag2poc-b-results /s6 out/
+  modal volume get taguri-b-results /s6 out/
 
 SGLang image, launch flags and the L40S fused-MoE Triton config follow jevlike's modal_sglang.py.
 The weights volume (gb10-decide-hf) is mounted read-only.
@@ -16,12 +16,12 @@ import urllib.request
 import modal
 
 MODEL_REPO, MODEL_REV = "RedHatAI/gemma-4-26B-A4B-it-FP8-dynamic", "ed35d7abe5d9"
-GPU = os.environ.get("SAG2POC_GPU", "L40S")
+GPU = os.environ.get("TAGURI_GPU", "L40S")
 GPU_USD_PER_H = 1.95
 
-app = modal.App("sag2poc-b-taguri")
+app = modal.App("taguri-b")
 weights = modal.Volume.from_name("gb10-decide-hf").read_only()
-results = modal.Volume.from_name("sag2poc-b-results", create_if_missing=True)
+results = modal.Volume.from_name("taguri-b-results", create_if_missing=True)
 
 image = (
     modal.Image.from_registry("lmsysorg/sglang:gemma4-mtp", add_python=None)

@@ -98,7 +98,7 @@ def main():
     ap.add_argument("--base-url", default="http://127.0.0.1:30000")
     ap.add_argument("--tokenizer")
     ap.add_argument("--data-dir", default=os.path.join(ROOT, "data"))
-    ap.add_argument("--idx-dir", default="/tmp/sag2poc-idx")
+    ap.add_argument("--idx-dir", default="/tmp/taguri-idx")
     ap.add_argument("--out")
     ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--tau", type=float)
@@ -137,7 +137,7 @@ def main():
 
         dec = OracleDecider(gold_rids, pick_hook)
     eng = Engine(ix, dec)
-    out = a.out or f"/tmp/sag2poc-out/{a.dataset}-{a.split}-{a.config}-{a.judge}"
+    out = a.out or f"/tmp/taguri-out/{a.dataset}-{a.split}-{a.config}-{a.judge}"
     summ = run_split(eng, cfg, questions, qids, out, workers=a.workers if a.judge == "sglang" else 4)
     run = {json.loads(l)["qid"]: json.loads(l)["retrieved"] for l in open(os.path.join(out, "run.jsonl"))}
     agg = aggregate(score_run(questions, run, qids))

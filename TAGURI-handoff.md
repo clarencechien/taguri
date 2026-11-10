@@ -1,4 +1,4 @@
-# SAG2POC — 交接文件 v0.6
+# Taguri POC — 交接文件 v0.6
 
 > ## 目前進度（給 Session A：從這裡開始讀）
 >
@@ -77,9 +77,9 @@ B0 必須讀 SAG2 的程式碼才接得上；新架構要獨立實作。同一�
 | Repo | 誰用 | 內容 |
 |---|---|---|
 | `clarencechien/sag2poc-baseline` | Session A | SAG-Benchmark submodule、B0 轉接層、評測工具的原始版本 |
-| `clarencechien/sag2poc` | Session B | 新架構 `taguri/`、Session A 交付的 `evalkit/` 和資料、所有 S6 之後的結果 |
+| `clarencechien/taguri` | Session B | 新架構 `taguri/`、Session A 交付的 `evalkit/` 和資料、所有 S6 之後的結果 |
 
-Session B 的工作環境**只掛** `sag2poc` 和 `jevlike` 兩個 repo，不掛 `sag2poc-baseline`，也不掛任何 Zleap 的 repo。
+Session B 的工作環境**只掛** `taguri` 和 `jevlike` 兩個 repo，不掛 `sag2poc-baseline`，也不掛任何 Zleap 的 repo。
 
 ### 2.3 Session B 的禁止事項
 
@@ -99,7 +99,7 @@ Session B 的工作環境**只掛** `sag2poc` 和 `jevlike` 兩個 repo，不掛
 
 ### 2.5 Session A 交給 Session B 的東西（S5 產出）
 
-放進 `sag2poc` repo，只能包含：
+放進 `taguri` repo，只能包含：
 
 - `evalkit/`：資料載入和指標計算（R@k、AE@k、配對 bootstrap）。**由 Session A 依指標定義自己寫，不 import 上游的任何程式碼。**
 - `data/`：正規化後的題組檔案和切分名單（格式見 §5）。
@@ -210,7 +210,7 @@ Modal 函式（GPU：L40S）
 Claude Code 網頁版：modal run --detach … → modal volume get … → 分析（純 CPU）
 ```
 
-兩個 session 用各自的 Modal app 名稱和 Volume，避免互相覆蓋：`sag2poc-a-*`、`sag2poc-b-*`。
+兩個 session 用各自的 Modal app 名稱和 Volume，避免互相覆蓋：`sag2poc-a-*`、`taguri-b-*`。
 
 ### 6.2 B0 轉接層（只有 Session A 讀這一節）
 
@@ -407,7 +407,7 @@ Claude Code 網頁版：modal run --detach … → modal volume get … → 分�
   2. **換寫法**：依 jevlike v23 的經驗重寫題目（短句、肯定問句），只改寫法、不改模型，再跑一次。
   3. **換判官**：同一批題目換 Clef 27B 跑一次。
   - 任一項讓 AUROC ≥ 0.80 → 用修好的版本繼續，結論註明原因。
-  - 三項都救不回來 → 才真正停，結論寫「這類地端判官在長段落的證據判斷上不可行」。要停的是 SAG2POC 這條線，jevlike 在產線題目上的結論不受影響。
+  - 三項都救不回來 → 才真正停，結論寫「這類地端判官在長段落的證據判斷上不可行」。要停的是 Taguri POC 這條線，jevlike 在產線題目上的結論不受影響。
 
 ---
 
@@ -470,7 +470,7 @@ MultiHop-RAG 是英文新聞的多跳題組，SAG2 的作者沒有用它調過�
 
 ### S5　交付包（0 美元）
 
-依 §2.5 把 `evalkit/`、`data/`、`reference/`、`handoff/A-to-B.md` 放進 `sag2poc` repo。
+依 §2.5 把 `evalkit/`、`data/`、`reference/`、`handoff/A-to-B.md` 放進 `taguri` repo。
 
 **交付前自我檢查**
 
@@ -481,13 +481,13 @@ MultiHop-RAG 是英文新聞的多跳題組，SAG2 的作者沒有用它調過�
 
 **交付方式**
 
-- Clarence 會先建好空的 `clarencechien/sag2poc` repo。Session A 能 push 的話，直接把交付包推上去（`main` 分支，一個 commit）。
+- Clarence 會先建好空的 `clarencechien/taguri` repo。Session A 能 push 的話，直接把交付包推上去（`main` 分支，一個 commit）。
 - 沒有 push 權限的話，放在 `sag2poc-baseline` 的 `deliver/` 資料夾，並在 §11 註明，由 Clarence 搬過去。
 - 本文件也放一份到交付位置。
 
 **做完這一段就停。** 填 §11 的「Session A 小結」，commit + push，交回 Clarence。
 
-**結論**：**交付完成**（2026-11-10）。交付包已推到 `clarencechien/sag2poc` 的 `main`（一個 commit）。四項自我檢查都通過：`evalkit` 沒有 import 上游程式；`handoff/A-to-B.md` 沒有 SAG2 的 prompt、公式、參數值、程式碼或內部做法；`reference/` 只有題號和分數；乾淨環境 `pip install` 後 `evalkit` 重算出 SAG2＋Jev 的 R@5 80.675、AE@10 69.50。Session A 到此為止，沒有開 Session B，沒有動 `taguri/`。
+**結論**：**交付完成**（2026-11-10）。交付包已推到 `clarencechien/taguri` 的 `main`（一個 commit）。四項自我檢查都通過：`evalkit` 沒有 import 上游程式；`handoff/A-to-B.md` 沒有 SAG2 的 prompt、公式、參數值、程式碼或內部做法；`reference/` 只有題號和分數；乾淨環境 `pip install` 後 `evalkit` 重算出 SAG2＋Jev 的 R@5 80.675、AE@10 69.50。Session A 到此為止，沒有開 Session B，沒有動 `taguri/`。
 
 ---
 
@@ -755,7 +755,7 @@ log-odds 事後重排：R@5 77.33（B0 實際 77.47），沒有差別
 MultiHop-RAG 300 題：B0 R@10 70.89 / BM25 52.42；金標比對不到 0%
 每題判斷次數：中位數 334，第 90 百分位 337（超過 150 的標示線）
 花費：S0–S5 合計約 $3.98，GPU 約 2.04 小時（帳單核對：否；這個環境查不到 Modal 帳單，數字是容器時間 × $1.95／小時）
-交付包：已放到 sag2poc（main，一個 commit）
+交付包：已放到 taguri（main，一個 commit）
 給 Clarence 的一句話（要不要開 Session B）：建議開。判官這一項已經確認可用：jevlike 放進 SAG2 迴圈只比 Jev 低 2.5 分、
   比現成 reranker 高 13 分，每千題約 $3.7。要先知道三件事：
   (1) Session B 要贏的門檻不低：B0 在 dev 400 題的 R@5 是 82.42，2Wiki 已經 97.25（S6 的 N3 很可能直接被跳過）。
@@ -821,8 +821,8 @@ sag2poc-baseline/           # Session A
 ├── tools/                  # 題組轉檔
 └── results/s0 … s4、cost.md
 
-sag2poc/                    # Session B（S5 由 Session A 放入前四項）
-├── SAG2POC-handoff.md      # 本檔
+taguri/                     # Session B（S5 由 Session A 放入前四項）
+├── TAGURI-handoff.md      # 本檔
 ├── evalkit/                # 指標與資料載入（A 交付）
 ├── data/                   # 正規化題組與切分（A 交付；大檔放 Volume，repo 只放下載腳本與名單）
 ├── reference/              # 各參考方法的逐題分數（A 交付）
