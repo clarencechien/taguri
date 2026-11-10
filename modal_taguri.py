@@ -160,6 +160,8 @@ def _run(stage: str, jobs: str, run_id: str = ""):
             cfg = make_config(j["config"], lock, tau=j.get("tau"), out_mode=j.get("out_mode"), rounds=j.get("rounds"), beta=j.get("beta"), chunk=j.get("chunk"), rejudge=j.get("rejudge"), bridge=j.get("bridge"), adaptive=j.get("adaptive"), rejudge_each=j.get("rejudge_each"), pick_none=j.get("pick_none"), min_pool=j.get("min_pool"), term_rank=j.get("term_rank"), n_cand=j.get("n_cand"), m=j.get("m"), K=j.get("K"))
             questions = load_questions(ds, data_root)
             qids = load_split(ds, split, data_root)
+            if j.get("types"):
+                qids = [q for q in qids if questions[q]["type"] in j["types"]]
             if j.get("limit"):
                 qids = qids[: int(j["limit"])]
             dense = None
