@@ -1,9 +1,9 @@
 """Run one configuration on one dataset split.
 
-  python -m engine.run --config N1 --dataset musique --split dev --judge sglang --base-url http://127.0.0.1:30000 \
+  python -m taguri.run --config N1 --dataset musique --split dev --judge sglang --base-url http://127.0.0.1:30000 \
       --tokenizer /hf/.../tokenizer.json --out out/musique-dev-N1
-  python -m engine.run --config N0 --dataset musique --split dev            # CPU only
-  python -m engine.run --config N1 --dataset musique --split calib --judge oracle   # CPU-only pipeline bound
+  python -m taguri.run --config N0 --dataset musique --split dev            # CPU only
+  python -m taguri.run --config N1 --dataset musique --split calib --judge oracle   # CPU-only pipeline bound
 """
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Summarise the Q3 wording probe (engine/probe.py output)."""
+"""Summarise the Q3 wording probe (taguri/probe.py output)."""
 import gzip
 import json
 import sys

@@ -10,8 +10,8 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from engine.analyze import Analyzer  # noqa: E402
-from engine.index import Index, build  # noqa: E402
+from taguri.analyze import Analyzer  # noqa: E402
+from taguri.index import Index, build  # noqa: E402
 from evalkit import load_questions, load_split  # noqa: E402
 
 

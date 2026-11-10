@@ -1,7 +1,7 @@
 """Session B entry point on Modal: SGLang (Gemma 4 26B-A4B FP8, judge server, no MTP) and the engine in one container.
 
   export MODAL_TOKEN_ID=$modal MODAL_TOKEN_SECRET=$modal_secret
-  modal run --detach modal_engine.py --stage s6 --jobs '[{"config":"N1","dataset":"musique","split":"dev"}]'
+  modal run --detach modal_taguri.py --stage s6 --jobs '[{"config":"N1","dataset":"musique","split":"dev"}]'
   modal volume get sag2poc-b-results /s6 out/
 
 SGLang image, launch flags and the L40S fused-MoE Triton config follow jevlike's modal_sglang.py.
@@ -19,7 +19,7 @@ MODEL_REPO, MODEL_REV = "RedHatAI/gemma-4-26B-A4B-it-FP8-dynamic", "ed35d7abe5d9
 GPU = os.environ.get("SAG2POC_GPU", "L40S")
 GPU_USD_PER_H = 1.95
 
-app = modal.App("sag2poc-b-engine")
+app = modal.App("sag2poc-b-taguri")
 weights = modal.Volume.from_name("gb10-decide-hf").read_only()
 results = modal.Volume.from_name("sag2poc-b-results", create_if_missing=True)
 
@@ -42,7 +42,7 @@ image = (
         "print('wrote moe configs')\n"
         "PY"
     )
-    .add_local_dir("engine", remote_path="/root/engine")
+    .add_local_dir("taguri", remote_path="/root/taguri")
     .add_local_dir("evalkit", remote_path="/root/evalkit")
     .add_local_dir("data", remote_path="/root/data")
     .add_local_file("results/thresholds.lock.json", remote_path="/root/results/thresholds.lock.json")
@@ -76,10 +76,10 @@ def run(stage: str, jobs: str, run_id: str = ""):
 
     sys.path.insert(0, "/root")
     t_container = time.time()
-    from engine.analyze import Analyzer
-    from engine.decide import LLMDecider, SGLangBackend
-    from engine.pipeline import Engine
-    from engine.run import get_index, load_lock, make_config, run_split
+    from taguri.analyze import Analyzer
+    from taguri.decide import LLMDecider, SGLangBackend
+    from taguri.pipeline import Engine
+    from taguri.run import get_index, load_lock, make_config, run_split
     from evalkit import aggregate, load_questions, load_split, score_run
 
     jobs = json.loads(jobs)
@@ -106,7 +106,7 @@ def run(stage: str, jobs: str, run_id: str = ""):
         for j in jobs:
             t_job = time.time()
             if j.get("probe"):
-                from engine.probe import run_probe
+                from taguri.probe import run_probe
 
                 row = run_probe(j, backend, lock, f"{out_root}/{j['tag']}", flush)
                 print(json.dumps(row), flush=True)

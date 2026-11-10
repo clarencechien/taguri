@@ -12,10 +12,10 @@
 | Snowball | `snowballstemmer` 3.1.1（English） |
 | SQLite FTS5 | 本機 3.45 以上；容器用 image 內建版本 |
 | 判斷模型 | `RedHatAI/gemma-4-26B-A4B-it-FP8-dynamic` @ `ed35d7abe5d9`，SGLang image `lmsysorg/sglang:gemma4-mtp`，沒有開 MTP |
-| 模板 | jevlike `decide/prompt.py` 的 `GEMMA4_TEMPLATE_NOTHINK_BOS`，原樣複製到 `engine/decide.py`，沒有修改 |
+| 模板 | jevlike `decide/prompt.py` 的 `GEMMA4_TEMPLATE_NOTHINK_BOS`，原樣複製到 `taguri/decide.py`，沒有修改 |
 | EG2 | `google/embeddinggemma-2` @ `914f7f89142e33e77833254d9c9b90c3cef7303b`（jevlike `bench/embed_route.py` 用的版本）；查詢端 `task: search result \| query: `，文件端 `title: {標題} \| text: {內文}` |
 
-## 1. 正規化（`engine/analyze.py`）
+## 1. 正規化（`taguri/analyze.py`）
 
 1. **逐字元做 NFKC**，不是整串做。理由：要保留「鍵值的每個字元來自原文的哪個位置」。NFKC 已經包含全形轉半形（全形英數、全形標點、全形空白）。代價是跨字元的組合序列不會被合併，對這幾個題組沒有影響。
 2. **拉丁字母去掉變音符號**（`Fàbregas` → `fabregas`），只影響鍵值。理由：問題和段落常常一邊有重音符號、一邊沒有。
@@ -31,7 +31,7 @@
 5. **`cjk_word`**：jieba 的 search 模式（會同時給長詞和裡面的短詞）。
 6. **`title` 欄位放標題的全部鍵值**（四種欄位的 token 混在一起）。理由：標題很短，不值得再分四欄。
 
-## 3. 索引（`engine/index.py`）
+## 3. 索引（`taguri/index.py`）
 
 1. FTS5 用 `unicode61` tokenizer，加上 `tokenchars '-_./'`，讓預先斷好的 token（包含帶標點的編號）原樣進索引。
 2. **查詢 = 所有查詢鍵值用 OR 串起來**，不指定欄位。FTS5 的 `bm25()` 會把各欄位的詞頻乘上欄位權重後相加，再做一次長度正規化，就是 BM25F 的簡化版。k1、b 用 FTS5 的固定值（1.2、0.75），沒有調。
@@ -53,7 +53,7 @@
 3. **選中的詞加權**：`分數 = bm25(原查詢) + β × bm25(選中的詞)`，β = 2，兩邊各取前 200 段的聯集再算。理由：原查詢通常有十幾個詞，橋接詞只有一兩個，不加權的話新的詞影響不了前 50 名。β 沒有調，用 Rocchio 常見的量級。
 4. **取前 50 之後才扣掉判過的段落**（所以擴展輪新判的段落通常少於 50）。理由：照規格的字面意思，而且判斷次數比較少。
 
-## 6. Q3 判證據（`engine/decide.py`）
+## 6. Q3 判證據（`taguri/decide.py`）
 
 1. **題目文字**（英文）：`Does the candidate passage contain information needed for one of the steps in answering the question?`，選項 `A. Yes`／`B. No`。理由：照交接文件的提醒，用寬的問法（「某一步所需的資訊」），不要求段落單獨就能回答；肯定形。
 2. **prompt 順序**：模板開頭 → `[State]` → 問題 → 已有的證據 → 候選段落 → `[Question]` 與選項。同一輪的所有候選共用到「已有的證據」為止的前綴；有已有證據時先送一筆把前綴放進快取，再整批送。
@@ -65,7 +65,7 @@
 
 log-odds ≥ τ 的段落依 log-odds 取前 8。同分時依原查詢的 BM25F 分數、再依段落編號。
 
-## 8. Q5 選橋接詞（`engine/pipeline.py`）
+## 8. Q5 選橋接詞（`taguri/pipeline.py`）
 
 1. **候選來源**：證據池每一段的標題、內文裡的編號、內文裡連續的大寫詞組（中間允許 `of`、`de`、`van` 這類連接詞；開頭如果是停用詞就去掉，處理句首的 `The`、`In`）、中文高 IDF 的詞（每段取 12 個）。
 2. **排除**：鍵值全部已經在目前為止任何一輪的查詢裡出現過的詞；長度超過 80 字元的詞。
@@ -82,7 +82,7 @@ log-odds ≥ τ 的段落依 log-odds 取前 8。同分時依原查詢的 BM25F 
 ## 10. Q8 輸出
 
 1. 「同一來源去重」：多跳題組和 MultiHop-RAG 以段落為單位（題組的金標就是段落）；EnterpriseRAG 以文件為單位。
-2. 排序方式（`out_mode`）在校準半上二選一後鎖定，見 `results/s6-engine.md`。
+2. 排序方式（`out_mode`）在校準半上二選一後鎖定，見 `results/s6-taguri.md`。
    - `pool_then_bm25`：log-odds ≥ τ 的段落依 log-odds 排，剩下的位置用原查詢的 BM25F 補。
    - `all_logodds`：所有判過的段落都依 log-odds 排，再用 BM25F 補。
 3. log-odds 同分時依原查詢的 BM25F 分數、再依段落編號（`handoff/A-to-B.md` §6.1 提醒 log-odds 會有同分）。
@@ -90,4 +90,4 @@ log-odds ≥ τ 的段落依 log-odds 取前 8。同分時依原查詢的 BM25F 
 ## 11. 校準（`results/thresholds.lock.json`）
 
 - 欄位權重：在校準半上只看了 `title`（0.5、1、2、4、8）和 `ids`（0.5、2、4）各一輪，一次只動一個。`title` 取 4（4 和 8 的 R@5 只差 0.05，取比較保守的）；`ids` 沒有可見差別，維持 1。`anchor_bonus` 看了 1、3、6，取中間的 3。檢查半的 R@5：預設 46.56、調過 48.72，沒有下降。
-- τ 和 `out_mode`：見 `results/s6-engine.md`。
+- τ 和 `out_mode`：見 `results/s6-taguri.md`。
