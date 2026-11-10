@@ -57,7 +57,15 @@ def run_split(engine, cfg, questions, qids, out_dir, workers=16, log=print, flus
     rows = [None] * len(qids)
 
     def one(i):
-        rows[i] = engine.run({"qid": qids[i], **questions[qids[i]]}, cfg)
+        q = {"qid": qids[i], **questions[qids[i]]}
+        try:
+            rows[i] = engine.run(q, cfg)
+        except Exception as e:  # noqa: BLE001  one bad question must not lose the whole run: fall back to the lexical order and flag it
+            log(f"  !! {qids[i]} failed: {e!r}")
+            from .pipeline import Config
+
+            rows[i] = engine.run(q, Config(name="fallback-N0", anchor_bonus=cfg.anchor_bonus))
+            rows[i]["trace"]["error"] = repr(e)
         return i
 
     done = 0
@@ -81,7 +89,7 @@ def run_split(engine, cfg, questions, qids, out_dir, workers=16, log=print, flus
             "calls_median": statistics.median(calls), "calls_p90": sorted(calls)[int(0.9 * (len(calls) - 1))], "calls_mean": sum(calls) / len(calls),
             "tokens_per_q": st("tokens") / len(qids), "fresh_calls": st("fresh"), "fresh_tokens": st("fresh_tokens"),
             "radix_cached_tokens": st("radix_cached"), "judge_wait_s": round(st("judge_s"), 1),
-            "min_option_mass": min(r["trace"]["stats"]["min_mass"] for r in rows)}
+            "min_option_mass": min(r["trace"]["stats"]["min_mass"] for r in rows), "failed_questions": sum(1 for r in rows if r["trace"].get("error"))}
     json.dump(summ, open(os.path.join(out_dir, "summary.json"), "w"), indent=1)
     if flush:
         flush()

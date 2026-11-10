@@ -21,6 +21,7 @@
 | 2026-11-10 | Hugging Face：`google/embeddinggemma-2` @ `914f7f8` 權重（在 Modal 容器內下載到 Volume `taguri-b-results`） | N4 | |
 | 2026-11-10 | PyPI（Modal image 內）：`torch`、`torchvision`、`torchaudio`、`pillow`、`sentence-transformers`、`transformers` | EG2 的獨立環境 | |
 | 2026-11-10 | jevlike `modal_v14.py`（只看 EG2 image 的套件版本要求） | 修 EG2 載入失敗 | |
+| 2026-11-10 | Hugging Face：`onyx-dot-app/EnterpriseRAG-Bench` @ `69916e3` 的 README（資料集卡）、`data/questions/test.parquet`、`data/documents/test.parquet`（後兩者在 Modal 容器內下載） | S10 | 題組官方說明，§2.4 允許。只讀了資料集卡的欄位說明和題型表；沒有開排行榜、論文和 GitHub repo |
 
 全程沒有用網路搜尋。
 

@@ -249,22 +249,41 @@ class SGLangBackend:
 class LLMDecider:
     def __init__(self, backend, lang="en", q3="A", layout="L1"):
         self.b, self.p = backend, Prompts(lang, q3, layout)
+        self._ntok = {}
+
+    EV_TOKEN_BUDGET = 10000  # context is 16,384; leaves room for the longest candidate passage and the question
+
+    def _fit(self, evidence):
+        """Keep the best-ranked evidence passages that fit the token budget (long enterprise chunks can overflow the context)."""
+        tok = getattr(self.b, "tok", None)
+        if tok is None or not evidence:
+            return evidence
+        out, used = [], 0
+        for p in evidence:
+            n = self._ntok.get(p["rid"])
+            if n is None:
+                n = self._ntok[p["rid"]] = len(tok.encode(p["title"] + ": " + p["text"], add_special_tokens=False).ids) + 4
+            if used + n > self.EV_TOKEN_BUDGET and out:
+                break
+            out.append(p); used += n
+        return out
 
     def evidence(self, q, evidence, cands, stats):
         """-> [{"lpA", "lpB", "lo"}] aligned with cands."""
+        evidence = self._fit(evidence)
         prompts = [self.p.evidence(q["question"], evidence, c) for c in cands]
         rs = self.b.ask(prompts, 2, stats, warm_first=bool(evidence))
         return [{"lpA": r["lp"][0], "lpB": r["lp"][1], "lo": r["lp"][0] - r["lp"][1], "mass": r["mass"]} for r in rs]
 
     def pick(self, q, evidence, terms, stats):
         """terms: 2..4 strings -> list of log P per option."""
-        return self.b.ask([self.p.pick(q["question"], evidence, terms)], len(terms), stats)[0]["lp"]
+        return self.b.ask([self.p.pick(q["question"], self._fit(evidence), terms)], len(terms), stats)[0]["lp"]
 
     def none_label(self):
         return "以上都不適合" if self.p.t["yes"] == "是" else "None of these"
 
     def enough(self, q, evidence, stats):
-        lp = self.b.ask([self.p.enough(q["question"], evidence)], 2, stats)[0]["lp"]
+        lp = self.b.ask([self.p.enough(q["question"], self._fit(evidence))], 2, stats)[0]["lp"]
         return {"lpA": lp[0], "lpB": lp[1], "lo": lp[0] - lp[1]}
 
     def qtype(self, q, stats):
