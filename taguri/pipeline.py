@@ -30,6 +30,11 @@ class Config:
     out_k: int = 10
     chunk: int = 0               # >0: judge each round's new candidates in chunks of this size (retrieval order), refreshing the
                                  #     evidence context between chunks. Every passage is still judged exactly once.
+    rejudge_each: int = 0        # >0 (S6 redo): after every round, judge the `rejudge_each` best passages again whenever the
+                                 #     evidence pool they were judged against has changed.
+    pick_none: bool = False      # S6 redo: bridge-term groups are 3 candidates + "none of these"
+    min_pool: int = 0            # S6 redo: keep at least this many passages (best log-odds) as provisional evidence
+    term_rank: str = "idf"       # "idf" | "entity": candidates that are themselves a passage title go first, then IDF
     rejudge: int = 0             # >0: DEVIATION from §7.2 Q6 (diagnostic only): after the last round, judge the top-`rejudge`
                                  #     passages again with the final evidence pool as context.
 
@@ -150,7 +155,13 @@ class Engine:
                 t.df = max(t.df, 1)
                 t.idf = self.ix.idf(t.df)
                 terms.append(t)
-        terms.sort(key=lambda t: (-t.idf, t.text))
+        if cfg.term_rank == "entity":
+            for t in terms:
+                k = self.ix.an.title_key(t.text)
+                t.anchorable = bool(k) and self.ix.con.execute("SELECT 1 FROM title_lookup WHERE key=? LIMIT 1", (k,)).fetchone() is not None
+            terms.sort(key=lambda t: (not t.anchorable, -t.idf, t.text))
+        else:
+            terms.sort(key=lambda t: (-t.idf, t.text))
         return terms[:cfg.n_cand]
 
     def choose_terms(self, q, pool, cands, cfg, stats, trace):
@@ -161,6 +172,22 @@ class Engine:
         if cfg.bridge == "idf":
             trace["picks"].append({"cands": [t.text for t in cands], "mode": "idf", "chosen": [t.text for t in cands[:cfg.n_terms]]})
             return cands[:cfg.n_terms]
+        if cfg.pick_none:
+            groups = [cands[i::3] for i in range(3)] if len(cands) > 6 else ([cands[0::2], cands[1::2]] if len(cands) > 3 else [cands])
+            chosen, glog, lps, best = [], [], [], None
+            for g in groups:
+                lp = self.dec.pick(q, pool, [t.text for t in g] + [self.dec.none_label()], stats)
+                i = max(range(len(g)), key=lambda i: (lp[i], -i))
+                margin = lp[i] - lp[len(g)]
+                if margin > 0:
+                    chosen.append(g[i])
+                if best is None or margin > best[0]:
+                    best = (margin, g[i])
+                glog.append([t.text for t in g]); lps.append(lp)
+            if not chosen:
+                chosen = [best[1]]  # every group said "none": still follow the least-bad candidate so the round is not wasted
+            trace["picks"].append({"groups": glog, "lp": lps, "chosen": [t.text for t in chosen], "none": True})
+            return chosen
         if len(cands) <= 4:
             lp = self.dec.pick(q, pool, [t.text for t in cands], stats)
             order = sorted(range(len(cands)), key=lambda i: (-lp[i], i))
@@ -218,7 +245,10 @@ class Engine:
                 pool = self._pool(state, cfg)
                 res = self.dec.evidence(q, pool, [self._src(r, pcache) for r in part], stats)
                 for r, x in zip(part, res):
-                    judged[r] = {"pid": pcache[r]["pid"], "lo": x["lo"], "lpA": x["lpA"], "lpB": x["lpB"], "round": state["round_base"] + rnd, "ctx": len(pool)}
+                    judged[r] = {"pid": pcache[r]["pid"], "lo": x["lo"], "lpA": x["lpA"], "lpB": x["lpB"], "round": state["round_base"] + rnd, "ctx": len(pool),
+                                 "sig": frozenset(p["rid"] for p in pool), "n": 1}
+            if cfg.rejudge_each > 0:
+                self._rejudge(q, cfg, state, stats)
             pool = self._pool(state, cfg)
             trace["rounds"].append({"round": state["round_base"] + rnd, "query": dense_q, "new": len(new), "pool": [p["pid"] for p in pool]})
             if rnd == max_rounds:
@@ -246,8 +276,28 @@ class Engine:
 
     def _pool(self, state, cfg):
         j = state["judged"]
-        top = sorted((r for r in j if j[r]["lo"] >= cfg.tau), key=lambda r: (-j[r]["lo"], -state["bm25"].get(r, 0.0), r))[:cfg.m]
+        ranked = sorted(j, key=lambda r: (-j[r]["lo"], -state["bm25"].get(r, 0.0), r))
+        top = [r for r in ranked if j[r]["lo"] >= cfg.tau][:cfg.m]
+        if len(top) < cfg.min_pool:
+            top = ranked[:cfg.min_pool]
         return [self._src(r, state["pcache"]) for r in top]
+
+    def _rejudge(self, q, cfg, state, stats):
+        """Judge the best passages again when the evidence they were judged against is out of date. One pass."""
+        j, pcache = state["judged"], state["pcache"]
+        pool = self._pool(state, cfg)
+        sig = frozenset(p["rid"] for p in pool)
+        if not pool:
+            return
+        top = sorted(j, key=lambda r: (-j[r]["lo"], -state["bm25"].get(r, 0.0), r))[:cfg.rejudge_each]
+        outside = [r for r in top if r not in sig and j[r]["sig"] != sig]
+        if outside:
+            for r, x in zip(outside, self.dec.evidence(q, pool, [self._src(r, pcache) for r in outside], stats)):
+                j[r].update(lo0=j[r].get("lo0", j[r]["lo"]), lo=x["lo"], lpA=x["lpA"], lpB=x["lpB"], sig=sig, ctx=len(pool), n=j[r]["n"] + 1)
+        for r in [r for r in top if r in sig and j[r]["sig"] != sig - {r}]:  # pool members: judged against the rest of the pool
+            rest = [p for p in pool if p["rid"] != r]
+            x = self.dec.evidence(q, rest, [self._src(r, pcache)], stats)[0]
+            j[r].update(lo0=j[r].get("lo0", j[r]["lo"]), lo=x["lo"], lpA=x["lpA"], lpB=x["lpB"], sig=sig - {r}, ctx=len(rest), n=j[r]["n"] + 1)
 
     # ------------------------------------------------------------------ whole question
     def run(self, q, cfg: Config):
@@ -316,7 +366,7 @@ class Engine:
             out.append(key)
             if len(out) >= max(cfg.out_k, 10):
                 break
-        trace["judged"] = list(judged.values())
+        trace["judged"] = [{k: v for k, v in x.items() if k != "sig"} for x in judged.values()]
         trace["stats"] = stats.as_dict()
         trace["wall_s"] = round(time.perf_counter() - t0, 3)
         return {"qid": q["qid"], "retrieved": out, "trace": trace}

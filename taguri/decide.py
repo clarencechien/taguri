@@ -72,6 +72,9 @@ Q3_VARIANTS = {
           "Yes: it states a fact about something the user question refers to, and that fact helps reach the answer",
           "No: it gives nothing that helps reach the answer"),
     "D": ("Would a person answering the user question want to keep the candidate passage as a source?", "Yes", "No"),
+    "G": ("Is the candidate passage about a person, place, work or thing that the user question or the evidence found so far names or describes?", "Yes", "No"),
+    "I": ("Does the candidate passage help with the user question? A passage helps if it gives the answer, or if it identifies a person, place, work or "
+          "thing that the user question describes indirectly.", "Yes", "No"),
     "E": ("Does the candidate passage tell us who, what, where or when something mentioned in the user question is, or give the answer itself?", "Yes", "No"),
 }
 STATE_L2 = "[State]\nUser question: {q}\n\nEvidence found so far:\n{ev}\n"
@@ -257,6 +260,9 @@ class LLMDecider:
         """terms: 2..4 strings -> list of log P per option."""
         return self.b.ask([self.p.pick(q["question"], evidence, terms)], len(terms), stats)[0]["lp"]
 
+    def none_label(self):
+        return "以上都不適合" if self.p.t["yes"] == "是" else "None of these"
+
     def enough(self, q, evidence, stats):
         lp = self.b.ask([self.p.enough(q["question"], evidence)], 2, stats)[0]["lp"]
         return {"lpA": lp[0], "lpB": lp[1], "lo": lp[0] - lp[1]}
@@ -282,6 +288,9 @@ class OracleDecider:
         stats.calls += 1
         sc = self.pick_hook(q, evidence, terms) if self.pick_hook else [0.0] * len(terms)
         return [s - i * 1e-6 for i, s in enumerate(sc)]
+
+    def none_label(self):
+        return "None of these"
 
     def enough(self, q, evidence, stats):
         stats.calls += 1

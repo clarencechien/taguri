@@ -62,7 +62,7 @@ image_eg = _with_code(base_image.run_commands(
 
 def start_server(port=30000, ctx=16384, max_running=64, extra=()):
     cmd = ["python3", "-m", "sglang.launch_server", "--model-path", f"/hf/{MODEL_REPO}", "--context-length", str(ctx),
-           "--max-running-requests", str(max_running), "--mem-fraction-static", "0.8", "--host", "127.0.0.1", "--port", str(port),
+           "--max-running-requests", str(max_running), "--mem-fraction-static", os.environ.get("SGL_MEM_FRACTION", "0.8"), "--host", "127.0.0.1", "--port", str(port),
            "--log-level", "warning", *extra]
     print("starting:", " ".join(cmd), flush=True)
     t0 = time.time()
@@ -87,6 +87,8 @@ def run(stage: str, jobs: str, run_id: str = ""):
 
 @app.function(image=image_eg, gpu=GPU, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 6)
 def run_eg(stage: str, jobs: str, run_id: str = ""):
+    os.environ["SGL_MEM_FRACTION"] = "0.72"  # leave room on the same GPU for the EG2 sidecar
+    os.environ["EG2_DEVICE"] = "cuda"
     return _run(stage, jobs, run_id)
 
 
@@ -146,7 +148,7 @@ def _run(stage: str, jobs: str, run_id: str = ""):
             if j.get("debug_lowmass") and backend:
                 backend.debug_dir = f"{out_root}/{j['tag']}"
                 os.makedirs(backend.debug_dir, exist_ok=True)
-            cfg = make_config(j["config"], lock, tau=j.get("tau"), out_mode=j.get("out_mode"), rounds=j.get("rounds"), beta=j.get("beta"), chunk=j.get("chunk"), rejudge=j.get("rejudge"), bridge=j.get("bridge"), adaptive=j.get("adaptive"))
+            cfg = make_config(j["config"], lock, tau=j.get("tau"), out_mode=j.get("out_mode"), rounds=j.get("rounds"), beta=j.get("beta"), chunk=j.get("chunk"), rejudge=j.get("rejudge"), bridge=j.get("bridge"), adaptive=j.get("adaptive"), rejudge_each=j.get("rejudge_each"), pick_none=j.get("pick_none"), min_pool=j.get("min_pool"), term_rank=j.get("term_rank"), n_cand=j.get("n_cand"), m=j.get("m"), K=j.get("K"))
             questions = load_questions(ds, data_root)
             qids = load_split(ds, split, data_root)
             if j.get("limit"):
