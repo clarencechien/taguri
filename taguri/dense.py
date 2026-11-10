@@ -37,10 +37,11 @@ class Dense:
     def encode(self, texts, batch_size=64):
         return np.asarray(self.model.encode(texts, batch_size=batch_size, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False))
 
-    def build(self, index, path, batch_size=64, limit=None, log=print):
-        """Encode every passage of `index` (in rid order) and save float16 vectors to `path` (.npy)."""
+    def build(self, index, path, batch_size=64, limit=None, log=print, start=0, stop=None):
+        """Encode passages of `index` in rid order (optionally only start < rid <= stop) and save float16 vectors to `path` (.npy)."""
         t0 = time.time()
-        rows = index.con.execute("SELECT rid, title, text FROM passages ORDER BY rid" + (f" LIMIT {int(limit)}" if limit else "")).fetchall()
+        where = f" WHERE rid > {int(start)}" + (f" AND rid <= {int(stop)}" if stop else "")
+        rows = index.con.execute("SELECT rid, title, text FROM passages" + where + " ORDER BY rid" + (f" LIMIT {int(limit)}" if limit else "")).fetchall()
         out = None
         for i in range(0, len(rows), 4096):
             part = rows[i:i + 4096]
@@ -102,8 +103,8 @@ class DenseClient:
         self.url, self._s = f"http://127.0.0.1:{port}", requests.Session()
         self.load_s = self._s.get(self.url, timeout=30).json()["load_s"]
 
-    def build(self, db_path, out, limit=None):
-        return self._s.post(self.url + "/build", json={"db": db_path, "out": out, "limit": limit}, timeout=6 * 3600).json()
+    def build(self, db_path, out, limit=None, start=0, stop=None):
+        return self._s.post(self.url + "/build", json={"db": db_path, "out": out, "limit": limit, "start": start, "stop": stop}, timeout=6 * 3600).json()
 
     def searcher(self, path):
         return _ClientIndex(self, path)

@@ -32,7 +32,7 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         if self.path == "/build":
-            out = ENC.build(_Ix(body["db"]), body["out"], limit=body.get("limit"))
+            out = ENC.build(_Ix(body["db"]), body["out"], limit=body.get("limit"), start=body.get("start") or 0, stop=body.get("stop"))
         else:
             ix = IDX.get(body["path"])
             if ix is None:

@@ -56,6 +56,7 @@ def _with_code(img):
 
 base_image = image
 image = _with_code(base_image)
+cpu_image_base = modal.Image.debian_slim(python_version="3.11").pip_install("numpy")
 # EG2 (N4 and "+EG2" groups only) needs sentence-transformers; kept in a separate image so the judge-only runs are untouched.
 image_eg = _with_code(base_image.run_commands(
     "python3 -m venv /opt/eg && /opt/eg/bin/pip install -q torch torchvision torchaudio pillow requests 'sentence-transformers>=6.1.0' 'transformers>=5.19.0' numpy"))
@@ -81,12 +82,12 @@ def start_server(port=30000, ctx=16384, max_running=64, extra=()):
     raise RuntimeError("sglang not healthy")
 
 
-@app.function(image=image, gpu=GPU, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 4)
+@app.function(image=image, gpu=GPU, cpu=16, memory=32768, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 4)
 def run(stage: str, jobs: str, run_id: str = ""):
     return _run(stage, jobs, run_id)
 
 
-@app.function(image=image_eg, gpu=GPU, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 6)
+@app.function(image=image_eg, gpu=GPU, cpu=16, memory=49152, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 8)
 def run_eg(stage: str, jobs: str, run_id: str = ""):
     os.environ["SGL_MEM_FRACTION"] = "0.72"  # leave room on the same GPU for the EG2 sidecar
     os.environ["EG2_DEVICE"] = "cuda"
@@ -162,6 +163,26 @@ def _run(stage: str, jobs: str, run_id: str = ""):
             if j.get("limit"):
                 qids = qids[: int(j["limit"])]
             dense = None
+            if j.get("eg_probe"):  # S10 step 2: time EG2 on the first N passages before deciding to embed everything
+                from taguri.dense import DenseClient
+
+                if encoder is None:
+                    eg_proc = subprocess.Popen(["/opt/eg/bin/python", "/root/taguri/dense_server.py", "30100", "/results/hf", os.environ.get("EG2_DEVICE", "cpu")])
+                    for _ in range(900):
+                        try:
+                            encoder = DenseClient(30100)
+                            break
+                        except Exception:  # noqa: BLE001
+                            time.sleep(1)
+                info = encoder.build(ix.db_path, "", limit=int(j["eg_probe"]))
+                info["passages_total"] = ix.n
+                info["est_full_s"] = round(info["build_s"] / info["n"] * ix.n, 1)
+                info["est_full_usd"] = round(info["est_full_s"] * GPU_USD_PER_H / 3600, 2)
+                row = {"tag": j.get("tag", "eg-probe"), **info}
+                print(json.dumps(row), flush=True)
+                report.append(row); env["report"] = report
+                json.dump(env, open(f"{out_root}/_run_{run_id}.json", "w"), indent=1); results.commit()
+                continue
             if cfg.dense:
                 if encoder is None:
                     from taguri.dense import DenseClient
@@ -218,6 +239,61 @@ def _run(stage: str, jobs: str, run_id: str = ""):
         json.dump(env, open(f"{out_root}/_run_{run_id}.json", "w"), indent=1)
         results.commit()
     return env
+
+
+@app.function(image=image_eg, gpu=GPU, cpu=8, memory=32768, volumes={"/results": results}, timeout=60 * 60 * 4)
+def eg_shard(dataset: str, zh_key: str, shard: int, nshards: int):
+    """S10: EG2 document vectors for one shard of a prepared index (no SGLang in this container)."""
+    import shutil
+    import sqlite3
+    import sys
+
+    sys.path.insert(0, "/root")
+    from taguri.dense import DenseClient
+
+    t0 = time.time()
+    db = f"/tmp/{dataset}.db"
+    shutil.copy(f"/results/idx/{dataset}-{zh_key}.db", db)
+    n = int(sqlite3.connect(db).execute("SELECT v FROM meta WHERE k='n'").fetchone()[0])
+    a, b = n * shard // nshards, n * (shard + 1) // nshards
+    proc = subprocess.Popen(["/opt/eg/bin/python", "/root/taguri/dense_server.py", "30100", "/results/hf", "cuda"])
+    try:
+        enc = None
+        for _ in range(900):
+            try:
+                enc = DenseClient(30100)
+                break
+            except Exception:  # noqa: BLE001
+                time.sleep(1)
+        os.makedirs("/results/dense/shards", exist_ok=True)
+        info = enc.build(db, f"/results/dense/shards/{dataset}.{shard}of{nshards}.npy", start=a, stop=b)
+    finally:
+        proc.terminate()
+    info.update(shard=shard, start=a, stop=b, container_s=round(time.time() - t0, 1))
+    results.commit()
+    return info
+
+
+@app.function(image=cpu_image_base, cpu=4, memory=32768, volumes={"/results": results}, timeout=60 * 60)
+def eg_merge(dataset: str, nshards: int, out_name: str):
+    import numpy as np
+
+    parts = [np.load(f"/results/dense/shards/{dataset}.{i}of{nshards}.npy") for i in range(nshards)]
+    m = np.concatenate(parts)
+    np.save(f"/results/dense/{out_name}.npy", m)
+    info = {"n": int(m.shape[0]), "dim": int(m.shape[1]), "bytes": int(m.nbytes)}
+    json.dump(info, open(f"/results/dense/{out_name}.npy.json", "w"))
+    results.commit()
+    return info
+
+
+@app.local_entrypoint()
+def eg(dataset: str = "enterprise", zh_key: str = "tw2sp", nshards: int = 4, out_name: str = "results_data-enterprise"):
+    infos = list(eg_shard.starmap([(dataset, zh_key, i, nshards) for i in range(nshards)]))
+    tot = {"shards": infos, "build_s_sum": round(sum(i["build_s"] for i in infos), 1), "container_s_sum": round(sum(i["container_s"] for i in infos), 1)}
+    tot["est_usd"] = round(tot["container_s_sum"] * GPU_USD_PER_H / 3600, 2)
+    tot["merged"] = eg_merge.remote(dataset, nshards, out_name)
+    print(json.dumps(tot, indent=1))
 
 
 cpu_image = _with_code(modal.Image.debian_slim(python_version="3.11").pip_install(
