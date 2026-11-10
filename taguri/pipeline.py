@@ -28,6 +28,10 @@ class Config:
     anchor_bonus: float = 0.0    # N0 only: score bonus for exact title/id anchors
     out_mode: str = "pool_then_bm25"   # Q8: "pool_then_bm25" | "all_logodds"
     out_k: int = 10
+    chunk: int = 0               # >0: judge each round's new candidates in chunks of this size (retrieval order), refreshing the
+                                 #     evidence context between chunks. Every passage is still judged exactly once.
+    rejudge: int = 0             # >0: DEVIATION from §7.2 Q6 (diagnostic only): after the last round, judge the top-`rejudge`
+                                 #     passages again with the final evidence pool as context.
 
 
 CONFIGS = {
@@ -192,10 +196,11 @@ class Engine:
         cands = ix.search_keys(base_keys, cfg.K)
         for r, s in cands:
             state["bm25"].setdefault(r, s)
-        rids = [r for r, _ in cands]
-        for a in state["anchors"]:
+        rids = []
+        for a in state["anchors"]:  # exact title / id matches are judged first, so they can serve as context for the rest
             sc = ix.search_keys(base_keys, restrict=a["rids"]) if len(a["rids"]) > 5 else [(r, 0) for r in a["rids"]]
             rids += [r for r, _ in sc[:5]]
+        rids += [r for r, _ in cands]
         dense_q = query_text
         used = set()
         for rnd in range(max_rounds + 1):
@@ -205,10 +210,12 @@ class Engine:
                 state["dense_only"].update(r for r in extra if r not in judged)
                 rids += extra
             new = [r for r in dict.fromkeys(rids) if r not in judged]
-            pool = self._pool(state, cfg)
-            if new:
-                res = self.dec.evidence(q, pool, [self._src(r, pcache) for r in new], stats)
-                for r, x in zip(new, res):
+            step = cfg.chunk if cfg.chunk > 0 else max(len(new), 1)
+            for c0 in range(0, len(new), step):
+                part = new[c0:c0 + step]
+                pool = self._pool(state, cfg)
+                res = self.dec.evidence(q, pool, [self._src(r, pcache) for r in part], stats)
+                for r, x in zip(part, res):
                     judged[r] = {"pid": pcache[r]["pid"], "lo": x["lo"], "lpA": x["lpA"], "lpB": x["lpB"], "round": state["round_base"] + rnd, "ctx": len(pool)}
             pool = self._pool(state, cfg)
             trace["rounds"].append({"round": state["round_base"] + rnd, "query": dense_q, "new": len(new), "pool": [p["pid"] for p in pool]})
@@ -276,6 +283,17 @@ class Engine:
         else:
             self._thread(q, text, cfg, state, stats, trace, cfg.rounds)
         j = state["judged"]
+        if cfg.rejudge > 0:
+            pool = self._pool(state, cfg)
+            prids = [p["rid"] for p in pool]
+            top = sorted(j, key=lambda r: (-j[r]["lo"], -bm25.get(r, 0.0), r))[:cfg.rejudge]
+            outside = [r for r in top if r not in prids and j[r]["ctx"] != len(pool)]
+            if outside and pool:
+                for r, x in zip(outside, self.dec.evidence(q, pool, [self._src(r, state["pcache"]) for r in outside], stats)):
+                    j[r].update(lo0=j[r]["lo"], lo=x["lo"], lpA=x["lpA"], lpB=x["lpB"], rejudged=True)
+            for r in [r for r in top if r in prids and j[r]["ctx"] != len(pool) - 1]:  # pool members: context = the rest of the pool
+                x = self.dec.evidence(q, [p for p in pool if p["rid"] != r], [self._src(r, state["pcache"])], stats)[0]
+                j[r].update(lo0=j[r]["lo"], lo=x["lo"], lpA=x["lpA"], lpB=x["lpB"], rejudged=True)
         if cfg.out_mode == "all_logodds":
             order = sorted(j, key=lambda r: (-j[r]["lo"], -bm25.get(r, 0.0), r))
         else:

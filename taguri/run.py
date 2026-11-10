@@ -32,7 +32,7 @@ def make_config(name, lock=None, **over):
     base = name.split("+")[0]
     kw = dict(CONFIGS[base])
     lock = lock or {}
-    for k in ("tau", "anchor_bonus", "out_mode", "beta"):
+    for k in ("tau", "anchor_bonus", "out_mode", "beta", "chunk"):
         if k in lock:
             kw[k] = lock[k]
     if "+EG2" in name:

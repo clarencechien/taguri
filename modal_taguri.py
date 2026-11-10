@@ -121,7 +121,7 @@ def run(stage: str, jobs: str, run_id: str = ""):
                 indexes[ikey] = get_index(ds, data_root, "/tmp/idx" + data_root.replace("/", "_"), an, lock.get("weights"), tag=f"-{zh_key}",
                                           doc_field=j.get("doc_field"))
             ix = indexes[ikey]
-            cfg = make_config(j["config"], lock, tau=j.get("tau"), out_mode=j.get("out_mode"), rounds=j.get("rounds"), beta=j.get("beta"))
+            cfg = make_config(j["config"], lock, tau=j.get("tau"), out_mode=j.get("out_mode"), rounds=j.get("rounds"), beta=j.get("beta"), chunk=j.get("chunk"), rejudge=j.get("rejudge"), bridge=j.get("bridge"), adaptive=j.get("adaptive"))
             questions = load_questions(ds, data_root)
             qids = load_split(ds, split, data_root)
             if j.get("limit"):
