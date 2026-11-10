@@ -15,5 +15,12 @@
  "out_mode": "all_logodds",
  "chunk": 5,
  "rejudge_each": 20,
- "min_pool": 2
+ "min_pool": 2,
+ "zh": {
+  "_note": "Chinese corpora only (lang zh). Chosen on the Chinese calibration set (150 translated check-half questions), see results/s7d-zh-followup.md.",
+  "q3_variant_zh": "I",
+  "zh_cands": true,
+  "term_rank": "entity"
+ },
+ "q3_variant_zh": "I"
 }

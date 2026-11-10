@@ -77,6 +77,12 @@ Q3_VARIANTS = {
           "thing that the user question describes indirectly.", "Yes", "No"),
     "E": ("Does the candidate passage tell us who, what, where or when something mentioned in the user question is, or give the answer itself?", "Yes", "No"),
 }
+# Chinese wordings of the evidence question, compared on the Chinese calibration set (results/s7d-zh-followup.md).
+Q3_ZH = {
+    "I": "這個候選段落對回答問題有幫助嗎？（只要段落給出答案，或指出問題裡間接描述的人、地、作品或事物，就算有幫助）",
+    "B": "這個候選段落是否陳述了有助於回答問題的事實？（直接回答，或是回答過程中的某一步，都算）",
+    "K": "這個候選段落和問題要找的答案有關嗎？（有關：段落給出答案，或說明問題裡提到的某個人、地、作品是誰、是什麼、在哪裡）",
+}
 STATE_L2 = "[State]\nUser question: {q}\n\nEvidence found so far:\n{ev}\n"
 
 
@@ -91,6 +97,7 @@ class Prompts:
                 instr = instr.replace("the user question", "the question")
             self.t["q_evidence"], self.q3_opts = instr, [yes, no]
         else:
+            self.t["q_evidence"] = Q3_ZH.get(q3, Q3_ZH["I"])
             self.q3_opts = [self.t["yes"], self.t["no"]]
 
     def _wrap(self, user):

@@ -157,7 +157,11 @@ def _run(stage: str, jobs: str, run_id: str = ""):
             if j.get("debug_lowmass") and backend:
                 backend.debug_dir = f"{out_root}/{j['tag']}"
                 os.makedirs(backend.debug_dir, exist_ok=True)
-            cfg = make_config(j["config"], lock, tau=j.get("tau"), out_mode=j.get("out_mode"), rounds=j.get("rounds"), beta=j.get("beta"), chunk=j.get("chunk"), rejudge=j.get("rejudge"), bridge=j.get("bridge"), adaptive=j.get("adaptive"), rejudge_each=j.get("rejudge_each"), pick_none=j.get("pick_none"), min_pool=j.get("min_pool"), term_rank=j.get("term_rank"), n_cand=j.get("n_cand"), m=j.get("m"), K=j.get("K"))
+            if lang.startswith("zh"):  # locked Chinese-only settings (results/thresholds.lock.json "zh"); a job may still override them
+                for k in ("zh_cands", "term_rank"):
+                    if k in lock.get("zh", {}):
+                        j.setdefault(k, lock["zh"][k])
+            cfg = make_config(j["config"], lock, tau=j.get("tau"), out_mode=j.get("out_mode"), rounds=j.get("rounds"), beta=j.get("beta"), chunk=j.get("chunk"), rejudge=j.get("rejudge"), bridge=j.get("bridge"), adaptive=j.get("adaptive"), rejudge_each=j.get("rejudge_each"), pick_none=j.get("pick_none"), min_pool=j.get("min_pool"), term_rank=j.get("term_rank"), zh_cands=j.get("zh_cands"), n_cand=j.get("n_cand"), m=j.get("m"), K=j.get("K"))
             questions = load_questions(ds, data_root)
             qids = load_split(ds, split, data_root)
             if j.get("types"):
@@ -210,7 +214,7 @@ def _run(stage: str, jobs: str, run_id: str = ""):
                     dense_ix[ikey] = encoder.searcher(vec)
                     env.setdefault("eg2", {})[ds] = json.load(open(vec + ".json"))
                 dense = dense_ix[ikey]
-            eng = Engine(ix, LLMDecider(backend, lang, j.get("q3", lock.get("q3_variant", "A")), j.get("layout", lock.get("layout", "L1"))) if cfg.judge else None,
+            eng = Engine(ix, LLMDecider(backend, lang, j.get("q3", lock.get("q3_variant_zh" if lang.startswith("zh") else "q3_variant", "A")), j.get("layout", lock.get("layout", "L1"))) if cfg.judge else None,
                          dense=dense, doc_level=bool(j.get("doc_level")))
             tag = j.get("tag") or f"{ds}-{split}-{j['config']}"
             out_dir = f"{out_root}/{tag}"
@@ -356,6 +360,31 @@ def translate(limit: int = 0):
     json.dump(info, open(f"{out_root}/_translate_info.json", "w"), indent=1)
     results.commit()
     return info
+
+
+@app.function(image=image, gpu=GPU, volumes={"/hf": weights, "/results": results}, timeout=60 * 60)
+def translate_q():
+    """Option A: re-translate the dev-zh questions and translate a Chinese calibration set (generation server)."""
+    import sys
+
+    sys.path.insert(0, "/root")
+    t0 = time.time()
+    proc, t_start = start_server(ctx=8192, max_running=128)
+    try:
+        from tools.translate_questions import main as trq
+
+        info = trq("http://127.0.0.1:30000", f"/hf/{MODEL_REPO}/tokenizer.json", "/root/data", "/results/data", commit=results.commit)
+    finally:
+        proc.terminate()
+    info.update(server_start_s=round(t_start, 1), container_s=round(time.time() - t0, 1))
+    info["est_usd"] = round(info["container_s"] * GPU_USD_PER_H / 3600, 3)
+    results.commit()
+    return info
+
+
+@app.local_entrypoint()
+def trq():
+    print(json.dumps(translate_q.remote(), indent=1, ensure_ascii=False))
 
 
 @app.local_entrypoint()

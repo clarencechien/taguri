@@ -184,6 +184,32 @@ class Analyzer:
                     res.cjk_word.append(Token(w, *span(a + s, a + e)))
         return res
 
+    def proper_nouns(self, text, flags=("nr", "ns", "nt", "nz", "nrt", "nrfg")):
+        """Chinese proper-noun runs (jieba part-of-speech tags for person / place / organisation / other names), returned in
+        the ORIGINAL spelling. Tagging runs on the normalised key because jieba's dictionary is Simplified."""
+        import jieba.posseg as pseg
+
+        if not hasattr(self, "_pos"):
+            self._pos = pseg.POSTokenizer(self._jb())
+        key, off = self.normalize(text)
+        out, pos, run = [], 0, None
+        for w in self._pos.cut(key):
+            a, b = pos, pos + len(w.word)
+            pos = b
+            if w.flag in flags and CJK_RUN.fullmatch(w.word):
+                run = (run[0], b) if run and run[1] == a else (a, b)
+                if run[0] == a:
+                    out.append(None)
+                out[-1] = run
+            else:
+                run = None
+        res = []
+        for a, b in out:
+            if 2 <= b - a <= 12:
+                s0, s1 = (a, b) if off is None else (off[a], off[b - 1] + 1)
+                res.append(text[s0:s1])
+        return res
+
     def title_key(self, title):
         """Key used for exact title anchoring: every word (stop-words kept, unstemmed), codes and CJK characters
         of the normalised title, joined by single spaces."""

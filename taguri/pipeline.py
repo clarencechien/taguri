@@ -34,6 +34,7 @@ class Config:
                                  #     evidence pool they were judged against has changed.
     pick_none: bool = False      # S6 redo: bridge-term groups are 3 candidates + "none of these"
     min_pool: int = 0            # S6 redo: keep at least this many passages (best log-odds) as provisional evidence
+    zh_cands: bool = False       # S7 follow-up: extra Chinese bridge candidates (dotted transliterated names, quoted / bracketed names)
     term_rank: str = "idf"       # "idf" | "entity": candidates that are themselves a passage title go first, then IDF
     rejudge: int = 0             # >0: DEVIATION from §7.2 Q6 (diagnostic only): after the last round, judge the top-`rejudge`
                                  #     passages again with the final evidence pool as context.
@@ -48,6 +49,21 @@ CONFIGS = {
 }
 
 CONNECT = frozenset("of the de la del van von der di da du le al el bin ibn".split())
+_HAN = "\u3400-\u4dbf\u4e00-\u9fff"
+ZH_NAME = re.compile(rf"((?:[{_HAN}]{{1,6}}[·‧・]){{1,4}})([{_HAN}]{{2,5}})")       # 萊納爾·梅西（最後一節的結尾要靠下面的截法決定）
+
+
+def zh_names(text):
+    """Transliterated names written with a middle dot. Where the last part ends is ambiguous (the name runs straight
+    into the next word), so every plausible cut is offered; the "does it occur elsewhere" filter keeps the real one."""
+    out = []
+    for m in ZH_NAME.finditer(text):
+        head, tail = m.group(1), m.group(2)
+        out += [head + tail[:n] for n in range(2, len(tail) + 1)]
+    return out
+
+
+ZH_QUOTE = re.compile(rf"[《〈「『]([^《》〈〉「」『』]{{2,20}})[》〉」』]")            # 《老爸老媽浪漫史》、「夢幻隊」
 ABBREV = frozenset("st dr mr mrs ms jr sr mt ft inc ltd co corp vs no prof gen col lt sgt capt rev gov sen rep bros u.s u.k".split())
 CAP_TOKEN = re.compile(r"[^\W_]+(?:['’.\-][^\W_]+)*\.?|[^\s]", re.UNICODE)
 
@@ -132,7 +148,12 @@ class Engine:
             a = self.ix.an.analyze(body)
             raw += [(body[t.start:t.end], "id") for t in a.ids if not (t.key.isdigit() and len(t.key) <= 4)]
             raw += [(ph, "cap") for ph, _, _ in cap_phrases(body)]
-            if a.cjk_word:
+            if cfg.zh_cands:
+                raw += [(t, "zh-name") for t in zh_names(body)]
+                raw += [(m.group(1), "zh-quote") for m in ZH_QUOTE.finditer(body)]
+                if a.cjk_word:  # named entities instead of "any rare word": rare word fragments make useless lookups
+                    raw += [(t, "zh-ner") for t in self.ix.an.proper_nouns(body)]
+            elif a.cjk_word:
                 ws = {}
                 for t in a.cjk_word:
                     if len(t.key) >= 2:
@@ -155,6 +176,10 @@ class Engine:
                 t.df = max(t.df, 1)
                 t.idf = self.ix.idf(t.df)
                 terms.append(t)
+        if cfg.zh_cands:  # of the alternative cuts of one dotted name, keep the longest that is as frequent as its prefix
+            names = [t for t in terms if t.src == "zh-name"]
+            dead = {id(a) for a in names for b in names if a is not b and b.text.startswith(a.text) and b.df >= a.df}
+            terms = [t for t in terms if id(t) not in dead]
         if cfg.term_rank == "entity":
             for t in terms:
                 k = self.ix.an.title_key(t.text)
