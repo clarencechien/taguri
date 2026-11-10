@@ -85,7 +85,7 @@ def run(stage: str, jobs: str, run_id: str = ""):
     jobs = json.loads(jobs)
     run_id = run_id or time.strftime("%Y%m%d-%H%M%S", time.gmtime())
     lock = load_lock("/root/results/thresholds.lock.json")
-    need_gpu = any(make_config(j["config"], lock).judge for j in jobs)
+    need_gpu = any(j.get("probe") or make_config(j["config"], lock).judge for j in jobs)
     proc, t_start = (start_server() if need_gpu else (None, 0.0))
     smi = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.used", "--format=csv,noheader"], capture_output=True, text=True).stdout.strip()
     env = {"run_id": run_id, "gpu": smi, "server_start_s": round(t_start, 1), "model": MODEL_REPO, "rev": MODEL_REV, "jobs": jobs}
@@ -105,6 +105,13 @@ def run(stage: str, jobs: str, run_id: str = ""):
         analyzers, indexes = {}, {}
         for j in jobs:
             t_job = time.time()
+            if j.get("probe"):
+                from engine.probe import run_probe
+
+                row = run_probe(j, backend, lock, f"{out_root}/{j['tag']}", flush)
+                print(json.dumps(row), flush=True)
+                report.append(row)
+                continue
             ds, split, lang = j["dataset"], j.get("split", "dev"), j.get("lang", "en")
             data_root = j.get("data_root", "/root/data")
             zh_key = j.get("zh_key", lock.get("zh_key", "tw2sp"))
@@ -119,7 +126,8 @@ def run(stage: str, jobs: str, run_id: str = ""):
             qids = load_split(ds, split, data_root)
             if j.get("limit"):
                 qids = qids[: int(j["limit"])]
-            eng = Engine(ix, LLMDecider(backend, lang) if cfg.judge else None, doc_level=bool(j.get("doc_level")))
+            eng = Engine(ix, LLMDecider(backend, lang, j.get("q3", lock.get("q3_variant", "A")), j.get("layout", lock.get("layout", "L1"))) if cfg.judge else None,
+                         doc_level=bool(j.get("doc_level")))
             tag = j.get("tag") or f"{ds}-{split}-{j['config']}"
             out_dir = f"{out_root}/{tag}"
             summ = run_split(eng, cfg, questions, qids, out_dir, workers=int(j.get("workers", 16)), flush=flush)

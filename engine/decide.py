@@ -63,9 +63,32 @@ def _clean(s):
     return " ".join((s or "").split())
 
 
+# Wordings tried for the evidence question (Q3) on the calibration half; the chosen one is recorded in
+# results/thresholds.lock.json ("q3_variant") and docs/design-decisions.md. Each entry: (instruction, yes label, no label).
+Q3_VARIANTS = {
+    "A": ("Does the candidate passage contain information needed for one of the steps in answering the question?", "Yes", "No"),
+    "B": ("Does the candidate passage state a fact that helps answer the user question, either directly or as an intermediate step?", "Yes", "No"),
+    "C": ("Is the candidate passage relevant evidence for the user question?",
+          "Yes: it states a fact about something the user question refers to, and that fact helps reach the answer",
+          "No: it gives nothing that helps reach the answer"),
+    "D": ("Would a person answering the user question want to keep the candidate passage as a source?", "Yes", "No"),
+    "E": ("Does the candidate passage tell us who, what, where or when something mentioned in the user question is, or give the answer itself?", "Yes", "No"),
+}
+STATE_L2 = "[State]\nUser question: {q}\n\nEvidence found so far:\n{ev}\n"
+
+
 class Prompts:
-    def __init__(self, lang="en"):
-        self.t = TEXT["zh" if lang.startswith("zh") else "en"]
+    def __init__(self, lang="en", q3="A", layout="L1"):
+        self.t = dict(TEXT["zh" if lang.startswith("zh") else "en"])
+        if not lang.startswith("zh"):
+            if layout == "L2":
+                self.t["state"] = STATE_L2
+            instr, yes, no = Q3_VARIANTS[q3]
+            if layout == "L1":
+                instr = instr.replace("the user question", "the question")
+            self.t["q_evidence"], self.q3_opts = instr, [yes, no]
+        else:
+            self.q3_opts = [self.t["yes"], self.t["no"]]
 
     def _wrap(self, user):
         return GEMMA4_TEMPLATE_NOTHINK_BOS.replace(USR_MARK, user).replace(SYS_MARK, self.t["system"])
@@ -79,7 +102,7 @@ class Prompts:
 
     def evidence(self, q, evidence, cand):
         user = self._state(q, evidence) + self.t["cand"].format(title=_clean(cand["title"]), text=_clean(cand["text"])) + \
-            self._question(self.t["q_evidence"], [self.t["yes"], self.t["no"]])
+            self._question(self.t["q_evidence"], self.q3_opts)
         return self._wrap(user)
 
     def pick(self, q, evidence, terms):
@@ -209,8 +232,8 @@ class SGLangBackend:
 
 
 class LLMDecider:
-    def __init__(self, backend, lang="en"):
-        self.b, self.p = backend, Prompts(lang)
+    def __init__(self, backend, lang="en", q3="A", layout="L1"):
+        self.b, self.p = backend, Prompts(lang, q3, layout)
 
     def evidence(self, q, evidence, cands, stats):
         """-> [{"lpA", "lpB", "lo"}] aligned with cands."""

@@ -38,7 +38,8 @@ CONFIGS = {
     "N3": dict(judge=True, adaptive=True, rounds=3, route=True),
 }
 
-CONNECT = frozenset("of the de la del van von der di da du le and for in on at al el bin ibn y e".split())
+CONNECT = frozenset("of the de la del van von der di da du le al el bin ibn".split())
+ABBREV = frozenset("st dr mr mrs ms jr sr mt ft inc ltd co corp vs no prof gen col lt sgt capt rev gov sen rep bros u.s u.k".split())
 CAP_TOKEN = re.compile(r"[^\W_]+(?:['’.\-][^\W_]+)*\.?|[^\s]", re.UNICODE)
 
 
@@ -53,7 +54,11 @@ def cap_phrases(text):
             run.pop(0)
         if run:
             s, e = run[0][1], run[-1][2]
-            out.append((text[s:e].rstrip("."), s, e))
+            ph = text[s:e].rstrip(".")
+            for suf in ("'s", "’s"):
+                if ph.endswith(suf):
+                    ph = ph[:-2]
+            out.append((ph, s, s + len(ph)))
         run.clear()
 
     for m in CAP_TOKEN.finditer(text):
@@ -64,7 +69,7 @@ def cap_phrases(text):
         capital = w[0].isupper() and not CJK_RUN.match(w[0])
         if capital:
             run.append((w, m.start(), m.end()))
-            if w.endswith(".") and len(w) > 4:  # a sentence end, not an abbreviation
+            if w.endswith(".") and not (len(w) == 2 or w[:-1].lower() in ABBREV):  # a sentence end, not an initial/abbreviation
                 flush()
         elif run and w.lower() in CONNECT:
             run.append((w, m.start(), m.end()))
@@ -116,7 +121,7 @@ class Engine:
             raw = [(p["title"], "title")]
             body = p["text"]
             a = self.ix.an.analyze(body)
-            raw += [(body[t.start:t.end], "id") for t in a.ids if not (t.key.isdigit() and len(t.key) < 4)]
+            raw += [(body[t.start:t.end], "id") for t in a.ids if not (t.key.isdigit() and len(t.key) <= 4)]
             raw += [(ph, "cap") for ph, _, _ in cap_phrases(body)]
             if a.cjk_word:
                 ws = {}
