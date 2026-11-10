@@ -42,11 +42,22 @@ image = (
         "print('wrote moe configs')\n"
         "PY"
     )
-    .add_local_dir("taguri", remote_path="/root/taguri")
-    .add_local_dir("evalkit", remote_path="/root/evalkit")
-    .add_local_dir("data", remote_path="/root/data")
-    .add_local_file("results/thresholds.lock.json", remote_path="/root/results/thresholds.lock.json")
+    .env({"HF_HUB_ENABLE_HF_TRANSFER": "0"})
 )
+
+
+def _with_code(img):
+    return (img.add_local_dir("taguri", remote_path="/root/taguri")
+            .add_local_dir("evalkit", remote_path="/root/evalkit")
+            .add_local_dir("data", remote_path="/root/data")
+            .add_local_file("results/thresholds.lock.json", remote_path="/root/results/thresholds.lock.json"))
+
+
+base_image = image
+image = _with_code(base_image)
+# EG2 (N4 and "+EG2" groups only) needs sentence-transformers; kept in a separate image so the judge-only runs are untouched.
+image_eg = _with_code(base_image.run_commands(
+    "python3 -m venv /opt/eg && /opt/eg/bin/pip install -q torch torchvision torchaudio pillow requests 'sentence-transformers>=6.1.0' 'transformers>=5.19.0' numpy"))
 
 
 def start_server(port=30000, ctx=16384, max_running=64, extra=()):
@@ -71,6 +82,15 @@ def start_server(port=30000, ctx=16384, max_running=64, extra=()):
 
 @app.function(image=image, gpu=GPU, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 4)
 def run(stage: str, jobs: str, run_id: str = ""):
+    return _run(stage, jobs, run_id)
+
+
+@app.function(image=image_eg, gpu=GPU, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 6)
+def run_eg(stage: str, jobs: str, run_id: str = ""):
+    return _run(stage, jobs, run_id)
+
+
+def _run(stage: str, jobs: str, run_id: str = ""):
     """jobs: JSON list of {"config", "dataset", "split", "lang"?, "tag"?, "limit"?, "tau"?, "out_mode"?, "data_root"?, "doc_level"?}"""
     import sys
 
@@ -92,6 +112,7 @@ def run(stage: str, jobs: str, run_id: str = ""):
     out_root = f"/results/{stage}"
     os.makedirs(out_root, exist_ok=True)
     report = []
+    eg_proc = None
     try:
         backend = SGLangBackend("http://127.0.0.1:30000", f"/hf/{MODEL_REPO}/tokenizer.json", cache_dir="/results/cache", run_id=run_id) if need_gpu else None
         if backend:
@@ -102,7 +123,8 @@ def run(stage: str, jobs: str, run_id: str = ""):
                 backend.flush()
             results.commit()
 
-        analyzers, indexes = {}, {}
+        analyzers, indexes, dense_ix = {}, {}, {}
+        encoder = None
         for j in jobs:
             t_job = time.time()
             if j.get("probe"):
@@ -121,18 +143,51 @@ def run(stage: str, jobs: str, run_id: str = ""):
                 indexes[ikey] = get_index(ds, data_root, "/tmp/idx" + data_root.replace("/", "_"), an, lock.get("weights"), tag=f"-{zh_key}",
                                           doc_field=j.get("doc_field"))
             ix = indexes[ikey]
+            if j.get("debug_lowmass") and backend:
+                backend.debug_dir = f"{out_root}/{j['tag']}"
+                os.makedirs(backend.debug_dir, exist_ok=True)
             cfg = make_config(j["config"], lock, tau=j.get("tau"), out_mode=j.get("out_mode"), rounds=j.get("rounds"), beta=j.get("beta"), chunk=j.get("chunk"), rejudge=j.get("rejudge"), bridge=j.get("bridge"), adaptive=j.get("adaptive"))
             questions = load_questions(ds, data_root)
             qids = load_split(ds, split, data_root)
             if j.get("limit"):
                 qids = qids[: int(j["limit"])]
+            dense = None
+            if cfg.dense:
+                if encoder is None:
+                    from taguri.dense import DenseClient
+
+                    eg_proc = subprocess.Popen(["/opt/eg/bin/python", "/root/taguri/dense_server.py", "30100", "/results/hf", os.environ.get("EG2_DEVICE", "cpu")])
+                    for _ in range(900):
+                        if eg_proc.poll() is not None:
+                            raise RuntimeError("EG2 sidecar exited")
+                        try:
+                            encoder = DenseClient(30100)
+                            break
+                        except Exception:  # noqa: BLE001
+                            time.sleep(1)
+                    env["eg2_load_s"] = round(encoder.load_s, 1)
+                    results.commit()
+                if ikey not in dense_ix:
+                    os.makedirs("/results/dense", exist_ok=True)
+                    vec = f"/results/dense/{data_root.strip('/').replace('/', '_')}-{ds}.npy"
+                    if not os.path.exists(vec):
+                        info = encoder.build(ix.db_path, vec)
+                        print("EG2 vectors:", json.dumps(info), flush=True)
+                        results.commit()
+                    dense_ix[ikey] = encoder.searcher(vec)
+                    env.setdefault("eg2", {})[ds] = json.load(open(vec + ".json"))
+                dense = dense_ix[ikey]
             eng = Engine(ix, LLMDecider(backend, lang, j.get("q3", lock.get("q3_variant", "A")), j.get("layout", lock.get("layout", "L1"))) if cfg.judge else None,
-                         doc_level=bool(j.get("doc_level")))
+                         dense=dense, doc_level=bool(j.get("doc_level")))
             tag = j.get("tag") or f"{ds}-{split}-{j['config']}"
             out_dir = f"{out_root}/{tag}"
             summ = run_split(eng, cfg, questions, qids, out_dir, workers=int(j.get("workers", 16)), flush=flush)
             run_rows = {json.loads(l)["qid"]: json.loads(l)["retrieved"] for l in open(f"{out_dir}/run.jsonl")}
             agg = aggregate(score_run(questions, run_rows, qids))
+            if dense is not None:
+                summ["eg2_query_s"] = round(dense.query_s, 2); summ["eg2_queries"] = dense.queries
+                json.dump(summ, open(f"{out_dir}/summary.json", "w"), indent=1)
+                dense.query_s, dense.queries = 0.0, 0
             row = {"tag": tag, "job_s": round(time.time() - t_job, 1), "calls_median": summ["calls_median"], "fresh_calls": summ["fresh_calls"],
                    "fresh_tokens": summ["fresh_tokens"], "min_mass": summ["min_option_mass"], **{k: round(v, 2) for k, v in agg.items()}}
             print(json.dumps(row), flush=True)
@@ -145,6 +200,8 @@ def run(stage: str, jobs: str, run_id: str = ""):
     finally:
         if proc:
             proc.terminate()
+        if eg_proc:
+            eg_proc.terminate()
         env["container_s"] = round(time.time() - t_container, 1)
         env["est_usd"] = round(env["container_s"] * GPU_USD_PER_H / 3600, 3)
         env["done"] = True
@@ -154,6 +211,6 @@ def run(stage: str, jobs: str, run_id: str = ""):
 
 
 @app.local_entrypoint()
-def main(stage: str = "smoke", jobs: str = "[]", run_id: str = ""):
-    env = run.remote(stage, jobs, run_id)
+def main(stage: str = "smoke", jobs: str = "[]", run_id: str = "", eg: bool = False):
+    env = (run_eg if eg else run).remote(stage, jobs, run_id)
     print(json.dumps(env, indent=1, ensure_ascii=False)[:8000])

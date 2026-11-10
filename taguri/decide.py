@@ -162,6 +162,7 @@ class SGLangBackend:
                                 pass
             self._fh = open(os.path.join(cache_dir, f"{run_id}-{int(time.time())}.jsonl"), "a")
         self.loaded = len(self.cache)
+        self.debug_dir, self._debug_n = None, 0
 
     def _sess(self):
         if not hasattr(self._tls, "s"):
@@ -218,6 +219,17 @@ class SGLangBackend:
                         self.cache[keys[i]] = rec
                         if self._fh:
                             self._fh.write(json.dumps(rec) + "\n")
+        if self.debug_dir and n_opts > 2:  # diagnostic: what does the model want to say when the option letters get little mass?
+            for i, r in enumerate(out):
+                if r["mass"] < 0.5 and self._debug_n < 60:
+                    self._debug_n += 1
+                    body = {"input_ids": self.tok.encode(prompts[i], add_special_tokens=False).ids, "sampling_params": {"max_new_tokens": 1, "temperature": 0},
+                            "return_logprob": True, "logprob_start_len": -1, "top_logprobs_num": 8, "return_text_in_logprobs": True,
+                            "token_ids_logprob": self.letter_ids}
+                    m = self._sess().post(f"{self.base_url}/generate", json=body, timeout=300).json()
+                    top = [[round(t[0], 2), t[2]] for t in m["meta_info"]["output_top_logprobs"][0]]
+                    with self._lock, open(os.path.join(self.debug_dir, "lowmass.jsonl"), "a") as f:
+                        f.write(json.dumps({"mass": r["mass"], "lp": r["lp"], "top": top, "text": m.get("text"), "prompt_tail": prompts[i][-700:]}, ensure_ascii=False) + "\n")
         for r in out:
             stats.calls += 1
             stats.tokens += r["ntok"]

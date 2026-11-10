@@ -16,4 +16,6 @@
 | 配對 bootstrap | 所有比較的信賴區間（`evalkit`，Session A 交付） | Efron、Tibshirani，An Introduction to the Bootstrap（1993） |
 | 讀第一個 token 的選項字母機率當判斷 | 所有判官呼叫 | Clarence 自己的 jevlike 專案（`clarencechien/jevlike`） |
 
-S7 之後如果用到其他技術（例如 CLIR 的翻譯檢索），會補在這張表。
+| EmbeddingGemma 2 的非對稱檢索前綴 | N4 的 EG2 補充召回（查詢端 `task: search result \| query:`，文件端 `title: … \| text: …`） | 模型卡的建議用法，寫法取自 jevlike `bench/embed_route.py` |
+
+S7b 之後沒有跑，所以沒有用到其他技術。

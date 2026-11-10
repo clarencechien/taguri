@@ -188,16 +188,18 @@ class Engine:
         return p
 
     # ------------------------------------------------------------------ one retrieval thread (Q2..Q7)
-    def _thread(self, q, query_text, cfg, state, stats, trace, max_rounds):
+    def _thread(self, q, query_text, cfg, state, stats, trace, max_rounds, focus=None):
+        """focus: an anchored entity (N3 comparison / intersection route). Its thread starts from a retrieval
+        weighted towards that entity instead of the plain question."""
         ix = self.ix
         judged, pcache = state["judged"], state["pcache"]
         base_keys = ix.query_keys(query_text)
         seen_keys = set(base_keys) | state["seen_keys"]
-        cands = ix.search_keys(base_keys, cfg.K)
+        cands = ix.fused_search(base_keys, ix.query_keys(focus), cfg.K, cfg.beta) if focus else ix.search_keys(base_keys, cfg.K)
         for r, s in cands:
             state["bm25"].setdefault(r, s)
         rids = []
-        for a in state["anchors"]:  # exact title / id matches are judged first, so they can serve as context for the rest
+        for a in ([x for x in state["anchors"] if x["text"] == focus] if focus else state["anchors"]):  # exact title / id matches are judged first, so they can serve as context for the rest
             sc = ix.search_keys(base_keys, restrict=a["rids"]) if len(a["rids"]) > 5 else [(r, 0) for r in a["rids"]]
             rids += [r for r, _ in sc[:5]]
         rids += [r for r, _ in cands]
@@ -278,7 +280,7 @@ class Engine:
         if cfg.route and route in (2, 3) and len(anchors) >= 2:
             # comparison / intersection: one retrieval thread per anchored entity, all feeding one evidence pool
             for a in anchors[:4]:
-                self._thread(q, text + " " + a["text"], cfg, state, stats, trace, cfg.rounds if not cfg.adaptive else 1)
+                self._thread(q, text, cfg, state, stats, trace, 1, focus=a["text"])
                 state["round_base"] += 10
         else:
             self._thread(q, text, cfg, state, stats, trace, cfg.rounds)
