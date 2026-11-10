@@ -1,11 +1,15 @@
-# SAG2POC — 交接文件 v0.5
+# SAG2POC — 交接文件 v0.6
 
 > ## 目前進度（給 Session A：從這裡開始讀）
 >
 > - **S0、S1、S2 已完成。** S2 照規則判定「停」，但 **Clarence 已推翻**，理由見 S2 的「Clarence 的決定」。
 > - **接下來做 S3 → S4 → S5。** S3 的結論不論落在哪一區都繼續做 S4、S5。
-> - **做完 S5 就停。** 在 §11 填好「Session A 小結」，commit + push，交回 Clarence。**不要開 Session B，也不要動 `engine/`。**
+> - **做完 S5 就停。** 在 §11 填好「Session A 小結」，commit + push，交回 Clarence。**不要開 Session B，也不要動 `taguri/`。**
 > - 本次預估花費約 3 美元（S3 約 1.6、S4 約 1.2），上限見 §10。
+>
+> **v0.6 的變更**
+>
+> - 新架構命名為 **Taguri**：詞彙召回加上 jevlike 判官的多跳證據檢索（§0）。程式目錄從 `taguri/` 改成 `taguri/`。
 >
 > **v0.5 的變更**
 >
@@ -42,7 +46,9 @@
 分兩步走：
 
 1. **建基線（B0，Session A）**：在 SAG2 原本的迴圈裡，把 Jev 判官換成 jevlike（Gemma 4 26B-A4B，讀第一個 token 的機率），量出這樣會掉多少分。
-2. **做新架構（N，Session B）**：依 §7 的規格獨立實作一套檢索流程。jevlike 不只打「是不是證據」的分數，也負責多選一的流程決策：選下一個要查的橋接詞、判斷證據夠不夠、判斷題型。詞彙層是多語分析器，繁、簡、英共用同一條流程。
+2. **做新架構 Taguri（N，Session B）**：依 §7 的規格獨立實作一套檢索流程。jevlike 不只打「是不是證據」的分數，也負責多選一的流程決策：選下一個要查的橋接詞、判斷證據夠不夠、判斷題型。詞彙層是多語分析器，繁、簡、英共用同一條流程。
+
+**命名**：新架構叫 **Taguri**，一句話描述是「詞彙召回加上 jevlike 判官的多跳證據檢索」。名字取自日文「手繰り」（把線一節一節拉回來），對應每一輪由判官挑出下一個要追的詞。Taguri 是專案名稱，不是縮寫：不要寫成某某 Augmented Generation，也不要在名字後面加 RAG。文件裡的 N0 到 N4 都是 Taguri 的設定。
 
 兩者用同一套評分方式比較，參考上限是 SAG2 作者已經跑好的 SAG2＋Jev 逐題紀錄。**全程不呼叫 Jev。** 新架構以詞彙比對為主；EmbeddingGemma 2（EG2）只能當補充召回，而且要先證明值得留下。
 
@@ -71,7 +77,7 @@ B0 必須讀 SAG2 的程式碼才接得上；新架構要獨立實作。同一�
 | Repo | 誰用 | 內容 |
 |---|---|---|
 | `clarencechien/sag2poc-baseline` | Session A | SAG-Benchmark submodule、B0 轉接層、評測工具的原始版本 |
-| `clarencechien/sag2poc` | Session B | 新架構 `engine/`、Session A 交付的 `evalkit/` 和資料、所有 S6 之後的結果 |
+| `clarencechien/sag2poc` | Session B | 新架構 `taguri/`、Session A 交付的 `evalkit/` 和資料、所有 S6 之後的結果 |
 
 Session B 的工作環境**只掛** `sag2poc` 和 `jevlike` 兩個 repo，不掛 `sag2poc-baseline`，也不掛任何 Zleap 的 repo。
 
@@ -199,7 +205,7 @@ Modal 函式（GPU：L40S）
 ├── 子行程：SGLang server（Gemma 4 26B-A4B FP8，127.0.0.1:30000，context ≥ 16384，開 radix cache）
 ├── （含 EG2 的組別）EG2：在同一個容器裡載入，文件向量建一次後存到 Volume 重複使用
 ├── 主行程：Session A 跑 run_sag2_benchmark.py --mode local --reranker jevlike
-│          Session B 跑 engine/run.py --config <N0|N1|N1c|N2|N3|N4> --dataset <…> --lang <en|zh-TW|zh-CN>
+│          Session B 跑 taguri/run.py --config <N0|N1|N1c|N2|N3|N4> --dataset <…> --lang <en|zh-TW|zh-CN>
 └── 輸出寫到 Modal Volume
 Claude Code 網頁版：modal run --detach … → modal volume get … → 分析（純 CPU）
 ```
@@ -223,7 +229,7 @@ Claude Code 網頁版：modal run --detach … → modal volume get … → 分�
 - 用量記到上游的 `reranker_usage`。
 - 對上游 `local_reranker.py` 的改動用 patch 檔：`patches/0001-jevlike-backend.patch`。不修改上游檔案本身。
 
-## 7. 新架構規格（Session B 依此實作，放在 `engine/`）
+## 7. Taguri 規格（Session B 依此實作，放在 `taguri/`）
 
 設計原則有兩條：
 
@@ -481,7 +487,7 @@ MultiHop-RAG 是英文新聞的多跳題組，SAG2 的作者沒有用它調過�
 
 **做完這一段就停。** 填 §11 的「Session A 小結」，commit + push，交回 Clarence。
 
-**結論**：**交付完成**（2026-11-10）。交付包已推到 `clarencechien/sag2poc` 的 `main`（一個 commit）。四項自我檢查都通過：`evalkit` 沒有 import 上游程式；`handoff/A-to-B.md` 沒有 SAG2 的 prompt、公式、參數值、程式碼或內部做法；`reference/` 只有題號和分數；乾淨環境 `pip install` 後 `evalkit` 重算出 SAG2＋Jev 的 R@5 80.675、AE@10 69.50。Session A 到此為止，沒有開 Session B，沒有動 `engine/`。
+**結論**：**交付完成**（2026-11-10）。交付包已推到 `clarencechien/sag2poc` 的 `main`（一個 commit）。四項自我檢查都通過：`evalkit` 沒有 import 上游程式；`handoff/A-to-B.md` 沒有 SAG2 的 prompt、公式、參數值、程式碼或內部做法；`reference/` 只有題號和分數；乾淨環境 `pip install` 後 `evalkit` 重算出 SAG2＋Jev 的 R@5 80.675、AE@10 69.50。Session A 到此為止，沒有開 Session B，沒有動 `taguri/`。
 
 ---
 
@@ -491,7 +497,7 @@ MultiHop-RAG 是英文新聞的多跳題組，SAG2 的作者沒有用它調過�
 
 ### S6　新架構逐步建構（dev，Modal，預算 14 美元）
 
-**做什麼**：依 §7 實作 `engine/`。在 dev 400 題上，**一次只改一個地方**，每一步都逐題配對比較。
+**做什麼**：依 §7 實作 `taguri/`。在 dev 400 題上，**一次只改一個地方**，每一步都逐題配對比較。
 
 | 設定 | 內容 | 和誰比 | 回答什麼 |
 |---|---|---|---|
@@ -530,7 +536,7 @@ MultiHop-RAG 是英文新聞的多跳題組，SAG2 的作者沒有用它調過�
 | B0 − 3 ≤ 最佳 N < B0 | **繼續**：新架構不同、分數相近，結論註明差距 |
 | 最佳 N < B0 − 3 | **改方向**：交回 Clarence，附上各步的數字，讓他決定是「接受分數低一點但架構不同」，還是調整設計 |
 
-**產出**：`results/s6-engine.md`（每一步的配對比較、信賴區間、成本、保留或拿掉的理由）、`docs/prior-art.md`、`docs/design-decisions.md`、`results/thresholds.lock.json`。
+**產出**：`results/s6-taguri.md`（每一步的配對比較、信賴區間、成本、保留或拿掉的理由）、`docs/prior-art.md`、`docs/design-decisions.md`、`results/thresholds.lock.json`。
 
 **結論**：＿＿（最佳設定是 N_；判官選詞有用／沒有證據；EG2 在多跳題組保留／不保留；繼續／改方向）
 
@@ -797,14 +803,14 @@ sag2poc/                    # Session B（S5 由 Session A 放入前四項）
 ├── data/                   # 正規化題組與切分（A 交付；大檔放 Volume，repo 只放下載腳本與名單）
 ├── reference/              # 各參考方法的逐題分數（A 交付）
 ├── handoff/A-to-B.md       # A 交付
-├── engine/
+├── taguri/
 │   ├── analyze.py          # 正規化與分欄斷詞
 │   ├── index.py            # FTS5 BM25F 與 title_lookup
 │   ├── dense.py            # EG2 文件向量、numpy 暴力比對
 │   ├── decide.py           # 呼叫 jevlike：判證據、選詞、是否足夠、題型
 │   ├── pipeline.py         # Q0 到 Q8
 │   └── run.py
-├── modal_engine.py
+├── modal_taguri.py
 ├── analysis/               # 配對、bootstrap、跳數與題型拆解
 ├── tools/                  # DRCD 轉檔、MuSiQue 翻譯、EnterpriseRAG 分段
 ├── docs/prior-art.md、design-decisions.md、clean-room-log.md
