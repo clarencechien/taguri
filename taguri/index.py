@@ -20,7 +20,26 @@ def _q(tok):
     return '"' + tok.replace('"', '""') + '"'
 
 
-def build(corpus_path, db_path, analyzer: Analyzer, doc_field=None, log=print):
+_W = {}
+
+
+def _init_worker(zh_key, use_bigram, use_word, jieba_dict, doc_field, analyzer=None):
+    _W["an"] = analyzer or Analyzer(zh_key=zh_key, use_bigram=use_bigram, use_word=use_word, jieba_dict=jieba_dict)
+    _W["doc_field"] = doc_field
+
+
+def _analyze_line(line):
+    an, doc_field = _W["an"], _W["doc_field"]
+    r = json.loads(line)
+    title, text = r.get("title") or "", r.get("text") or ""
+    ta, xa = an.analyze(title), an.analyze(text)
+    fts = (" ".join(ta.all_keys()), " ".join(xa.keys("cjk_bigram")), " ".join(xa.keys("cjk_word")), " ".join(xa.keys("latin")), " ".join(xa.keys("ids")))
+    pas = (str(r["pid"]), str(r.get(doc_field) or r["pid"]) if doc_field else str(r["pid"]), title, text)
+    keys = {k for k in (an.title_key(title), an.title_key(PAREN.sub("", title))) if k}
+    return fts, pas, keys
+
+
+def build(corpus_path, db_path, analyzer: Analyzer, doc_field=None, log=print, workers=1):
     """corpus.jsonl rows: {"pid", "title", "text"[, doc_field]}."""
     if os.path.exists(db_path):
         os.remove(db_path)
@@ -35,23 +54,31 @@ def build(corpus_path, db_path, analyzer: Analyzer, doc_field=None, log=print):
         "CREATE TABLE meta(k TEXT PRIMARY KEY, v TEXT);"
     )
     rows, n = [], 0
-    with open(corpus_path, encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            r = json.loads(line)
-            n += 1
-            title, text = r.get("title") or "", r.get("text") or ""
-            ta, xa = analyzer.analyze(title), analyzer.analyze(text)
-            con.execute("INSERT INTO fts(rowid, title, cjk_bigram, cjk_word, latin, ids) VALUES (?,?,?,?,?,?)",
-                        (n, " ".join(ta.all_keys()), " ".join(xa.keys("cjk_bigram")), " ".join(xa.keys("cjk_word")),
-                         " ".join(xa.keys("latin")), " ".join(xa.keys("ids"))))
-            con.execute("INSERT INTO passages VALUES (?,?,?,?,?)", (n, str(r["pid"]), str(r.get(doc_field) or r["pid"]) if doc_field else str(r["pid"]), title, text))
-            for k in {analyzer.title_key(title), analyzer.title_key(PAREN.sub("", title))}:
-                if k:
-                    rows.append((k, n))
-            if n % 50000 == 0:
-                log(f"  indexed {n} passages ({time.time() - t0:.0f}s)")
+
+    def lines():
+        with open(corpus_path, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    yield line
+
+    if workers > 1:
+        import multiprocessing as mp
+
+        pool = mp.Pool(workers, initializer=_init_worker, initargs=(analyzer.zh_key, analyzer.use_bigram, analyzer.use_word, analyzer._jieba_dict, doc_field))
+        it = pool.imap(_analyze_line, lines(), chunksize=200)
+    else:
+        _init_worker(None, None, None, None, doc_field, analyzer)
+        it = map(_analyze_line, lines())
+    for fts_row, pas_row, keys in it:
+        n += 1
+        con.execute("INSERT INTO fts(rowid, title, cjk_bigram, cjk_word, latin, ids) VALUES (?,?,?,?,?,?)", (n, *fts_row))
+        con.execute("INSERT INTO passages VALUES (?,?,?,?,?)", (n, *pas_row))
+        rows.extend((k, n) for k in keys)
+        if n % 50000 == 0:
+            log(f"  indexed {n} passages ({time.time() - t0:.0f}s)")
+            con.commit()
+    if workers > 1:
+        pool.close(); pool.join()
     con.executemany("INSERT INTO title_lookup VALUES (?,?)", rows)
     con.execute("CREATE INDEX title_lookup_key ON title_lookup(key)")
     con.execute("CREATE INDEX passages_doc ON passages(doc)")

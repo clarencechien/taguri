@@ -49,6 +49,7 @@ image = (
 def _with_code(img):
     return (img.add_local_dir("taguri", remote_path="/root/taguri")
             .add_local_dir("evalkit", remote_path="/root/evalkit")
+            .add_local_dir("tools", remote_path="/root/tools")
             .add_local_dir("data", remote_path="/root/data")
             .add_local_file("results/thresholds.lock.json", remote_path="/root/results/thresholds.lock.json"))
 
@@ -142,8 +143,15 @@ def _run(stage: str, jobs: str, run_id: str = ""):
             an = analyzers.setdefault(zh_key, Analyzer(zh_key=zh_key))
             ikey = (data_root, ds, zh_key)
             if ikey not in indexes:
-                indexes[ikey] = get_index(ds, data_root, "/tmp/idx" + data_root.replace("/", "_"), an, lock.get("weights"), tag=f"-{zh_key}",
-                                          doc_field=j.get("doc_field"))
+                idx_dir = "/tmp/idx" + data_root.replace("/", "_")
+                pre = f"/results/idx/{ds}-{zh_key}.db"
+                if os.path.exists(pre):  # index prepared on the Volume (EnterpriseRAG): copy to local disk for speed
+                    import shutil
+
+                    os.makedirs(idx_dir, exist_ok=True)
+                    if not os.path.exists(f"{idx_dir}/{ds}-{zh_key}.db"):
+                        shutil.copy(pre, f"{idx_dir}/{ds}-{zh_key}.db")
+                indexes[ikey] = get_index(ds, data_root, idx_dir, an, lock.get("weights"), tag=f"-{zh_key}", doc_field=j.get("doc_field"))
             ix = indexes[ikey]
             if j.get("debug_lowmass") and backend:
                 backend.debug_dir = f"{out_root}/{j['tag']}"
@@ -210,6 +218,71 @@ def _run(stage: str, jobs: str, run_id: str = ""):
         json.dump(env, open(f"{out_root}/_run_{run_id}.json", "w"), indent=1)
         results.commit()
     return env
+
+
+cpu_image = _with_code(modal.Image.debian_slim(python_version="3.11").pip_install(
+    "pyarrow", "huggingface_hub", "numpy", "requests", "jieba==0.42.1", "opencc-python-reimplemented==0.1.7", "snowballstemmer==3.1.1"))
+
+
+@app.function(image=cpu_image, cpu=16, memory=32768, volumes={"/results": results}, timeout=60 * 60 * 3)
+def prep_enterprise():
+    """S10 step 1 (CPU only): download EnterpriseRAG-Bench, chunk, build the lexical index on the Volume."""
+    import sys
+
+    sys.path.insert(0, "/root")
+    from taguri.analyze import Analyzer
+    from taguri.index import build
+    from tools.enterprise_prep import main as prep
+
+    t0 = time.time()
+    out = "/results/data/enterprise"
+    have = json.load(open(f"{out}/MANIFEST.json")) if os.path.exists(f"{out}/MANIFEST.json") else {}
+    info = have if have.get("dedup") else prep(out, cache_dir="/tmp/hf")
+    info["prep_s"] = round(time.time() - t0, 1)
+    results.commit()
+    lock = json.load(open("/root/results/thresholds.lock.json"))
+    os.makedirs("/results/idx", exist_ok=True)
+    tmp = "/tmp/enterprise.db"
+    binfo = build(f"{out}/corpus.jsonl", tmp, Analyzer(zh_key=lock.get("zh_key", "tw2sp")), doc_field="doc", workers=14)
+    import shutil
+
+    shutil.copy(tmp, "/results/idx/enterprise-tw2sp.db")
+    info["index"] = binfo
+    json.dump(info, open("/results/idx/enterprise-tw2sp.db.json", "w"), indent=1)
+    results.commit()
+    return info
+
+
+@app.local_entrypoint()
+def prep():
+    print(json.dumps(prep_enterprise.remote(), indent=1, ensure_ascii=False))
+
+
+@app.function(image=image, gpu=GPU, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 4)
+def translate(limit: int = 0):
+    """S7b: generation server (separate run from the judge server), translates MuSiQue into zh-TW / zh-CN on the Volume."""
+    import sys
+
+    sys.path.insert(0, "/root")
+    t0 = time.time()
+    proc, t_start = start_server(ctx=8192, max_running=128)
+    try:
+        from tools.translate_musique import main as tr
+
+        out_root = "/results/data" if not limit else "/results/data-smoke"
+        info = tr("http://127.0.0.1:30000", f"/hf/{MODEL_REPO}/tokenizer.json", "/root/data", out_root, limit=limit, commit=results.commit)
+    finally:
+        proc.terminate()
+    info.update(server_start_s=round(t_start, 1), container_s=round(time.time() - t0, 1))
+    info["est_usd"] = round(info["container_s"] * GPU_USD_PER_H / 3600, 3)
+    json.dump(info, open(f"{out_root}/_translate_info.json", "w"), indent=1)
+    results.commit()
+    return info
+
+
+@app.local_entrypoint()
+def tr(limit: int = 0):
+    print(json.dumps(translate.remote(limit), indent=1, ensure_ascii=False))
 
 
 @app.local_entrypoint()

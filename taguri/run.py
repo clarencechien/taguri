@@ -41,11 +41,11 @@ def make_config(name, lock=None, **over):
     return Config(name=name, **kw)
 
 
-def get_index(dataset, data_dir, idx_dir, analyzer, weights=None, doc_field=None, tag="", log=print):
+def get_index(dataset, data_dir, idx_dir, analyzer, weights=None, doc_field=None, tag="", log=print, workers=1):
     os.makedirs(idx_dir, exist_ok=True)
     db = os.path.join(idx_dir, f"{dataset}{tag}.db")
     if not os.path.exists(db):
-        info = build(os.path.join(data_dir, dataset, "corpus.jsonl"), db, analyzer, doc_field=doc_field, log=log)
+        info = build(os.path.join(data_dir, dataset, "corpus.jsonl"), db, analyzer, doc_field=doc_field, log=log, workers=workers)
         log(f"built index {db}: {info}")
         json.dump(info, open(db + ".json", "w"))
     return Index(db, analyzer, weights)
