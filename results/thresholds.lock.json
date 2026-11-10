@@ -1,0 +1,6 @@
+{
+ "_note": "Calibrated once on the MuSiQue calibration half (data/musique splits.json: calib), checked on the check half. Not tuned on test, MultiHop-RAG or EnterpriseRAG.",
+ "zh_key": "tw2sp",
+ "weights": {"title": 4.0, "cjk_bigram": 1.0, "cjk_word": 1.0, "latin": 1.0, "ids": 1.0},
+ "anchor_bonus": 3.0
+}
