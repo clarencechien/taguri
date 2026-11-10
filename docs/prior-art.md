@@ -15,7 +15,6 @@
 | 繁簡正規化後再比對 | 比對用的鍵值用 OpenCC 統一成同一種字體 | OpenCC 專案（BYVoid） |
 | 配對 bootstrap | 所有比較的信賴區間（`evalkit`，Session A 交付） | Efron、Tibshirani，An Introduction to the Bootstrap（1993） |
 | 讀第一個 token 的選項字母機率當判斷 | 所有判官呼叫 | Clarence 自己的 jevlike 專案（`clarencechien/jevlike`） |
-
 | EmbeddingGemma 2 的非對稱檢索前綴 | N4 的 EG2 補充召回（查詢端 `task: search result \| query:`，文件端 `title: … \| text: …`） | 模型卡的建議用法，寫法取自 jevlike `bench/embed_route.py` |
 
 S7b 之後沒有跑，所以沒有用到其他技術。
