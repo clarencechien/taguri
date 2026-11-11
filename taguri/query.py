@@ -3,6 +3,7 @@
   python -m taguri.query --db store/idx/mydocs.db --question "..." --judge llama --base-url http://127.0.0.1:8080
   python -m taguri.query --db store/idx/mydocs.db --question "..." --judge none          # lexical layer only
   python -m taguri.query --db ... --question "..." --lang zh --doc-level --json
+  python -m taguri.query --db ... --question "..." --dense-vectors store/idx/mydocs.eg2.npy --eg2-model /models/embeddinggemma-2
 """
 from __future__ import annotations
 
@@ -31,11 +32,20 @@ def main():
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--llama-parallel", type=int, default=4)
     ap.add_argument("--lock", help="use this lock file instead of results/thresholds.lock.json")
+    ap.add_argument("--dense-vectors", help="EG2 vectors of this index (.npy from `python -m taguri.dense build`); turns on EG2 supplementary recall")
+    ap.add_argument("--eg2-model", help="local EG2 model directory (default: the pinned Hugging Face revision)")
+    ap.add_argument("--eg2-device", default="cpu", help="cpu | cuda (where the query is encoded and the vectors are held)")
+    ap.add_argument("--eg2-url", help="use a running taguri/dense_server.py instead of loading EG2 in this process")
     a = ap.parse_args()
     lock = load_lock(a.lock)
     zh = a.lang.startswith("zh")
     ix = Index(a.db, Analyzer(zh_key=lock.get("zh_key", "tw2sp")), lock.get("weights"))
-    cfg = make_config("N0" if a.judge == "none" else "N1", lock)
+    cfg = make_config("N0" if a.judge == "none" else ("N1+EG2" if a.dense_vectors else "N1"), lock)
+    dense = None
+    if cfg.dense:
+        from .dense import open_dense
+
+        dense = open_dense(a.dense_vectors, a.eg2_model, a.eg2_device, a.eg2_url, expect_n=ix.n)
     dec = None
     if a.judge != "none":
         backend = SGLangBackend(a.base_url, a.tokenizer) if a.judge == "sglang" else LlamaBackend(a.base_url, parallel=a.llama_parallel)
@@ -45,7 +55,7 @@ def main():
                 if hasattr(cfg, k):
                     setattr(cfg, k, v)
     t0 = time.perf_counter()
-    r = Engine(ix, dec, doc_level=a.doc_level).run({"qid": "q", "question": a.question}, cfg)
+    r = Engine(ix, dec, dense=dense, doc_level=a.doc_level).run({"qid": "q", "question": a.question}, cfg)
     dt = time.perf_counter() - t0
     tr = r["trace"]
     lo = {x["pid"]: x["lo"] for x in tr["judged"]}

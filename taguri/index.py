@@ -92,6 +92,10 @@ def build(corpus_path, db_path, analyzer: Analyzer, doc_field=None, log=print, w
 
 
 class Index:
+    LOOKUP_MAX = 4      # restricted searches over more rowids than this use one filtered pass
+    FULL_DEPTH = 200    # unrestricted searches are computed to at least this depth, then cached
+    CACHE_QUERIES = 16  # result lists kept per thread
+
     def __init__(self, db_path, analyzer: Analyzer, weights=None):
         self.db_path, self.an = db_path, analyzer
         self.weights = dict(DEFAULT_WEIGHTS, **(weights or {}))
@@ -129,15 +133,32 @@ class Index:
             return []
         match = " OR ".join(_q(x) for x in keys)
         if restrict is not None:
-            restrict = list(restrict)
+            restrict = list(dict.fromkeys(restrict))
+            # A plain "rowid IN (...)" makes SQLite run the MATCH once per rowid, and FTS5 recomputes the document
+            # frequency of every query term each time (0.1 s per rowid on 1.5M passages). "+rowid" turns it into one
+            # pass over the matches that only scores the rows asked for. Same rows, same scores.
+            col = "rowid" if len(restrict) <= self.LOOKUP_MAX else "+rowid"
             out = []
-            for i in range(0, len(restrict), 500):
-                part = restrict[i:i + 500]
-                out += self.con.execute(f"SELECT rowid, -{self._bm25()} FROM fts WHERE fts MATCH ? AND rowid IN ({','.join('?' * len(part))})",
+            for i in range(0, len(restrict), 900):
+                part = restrict[i:i + 900]
+                out += self.con.execute(f"SELECT rowid, -{self._bm25()} FROM fts WHERE fts MATCH ? AND {col} IN ({','.join('?' * len(part))})",
                                         (match, *part)).fetchall()
             return sorted(out, key=lambda x: (-x[1], x[0]))
-        return self.con.execute(f"SELECT rowid, -{self._bm25()} AS s FROM fts WHERE fts MATCH ? ORDER BY s DESC, rowid LIMIT ?",
-                                (match, k)).fetchall()
+        # The same query comes back several times within one question (first pass, every expansion round), each
+        # time scoring every matching passage. Keep the last few result lists per thread; a shorter list is a
+        # prefix of a longer one because the order is total (score, then rowid).
+        cache = getattr(self._tls, "full", None)
+        if cache is None:
+            cache = self._tls.full = {}
+        hit = cache.get(match)
+        if hit is None or hit[0] < k:
+            depth = max(k, self.FULL_DEPTH)
+            rows = self.con.execute(f"SELECT rowid, -{self._bm25()} AS s FROM fts WHERE fts MATCH ? ORDER BY s DESC, rowid LIMIT ?",
+                                    (match, depth)).fetchall()
+            if len(cache) >= self.CACHE_QUERIES:
+                cache.pop(next(iter(cache)))
+            hit = cache[match] = (depth, rows)
+        return hit[1][:k]
 
     def search(self, text, k=50):
         return self.search_keys(self.query_keys(text), k)

@@ -5,6 +5,13 @@
 - Task prompts follow the model card as used in jevlike (bench/embed_route.py):
     query:    "task: search result | query: {q}"
     document: "title: {title} | text: {text}"
+
+Build the vectors of an index once (the model can be a local directory, for machines without network access):
+
+  python -m taguri.dense build --db store/idx/mydocs.db --out store/idx/mydocs.eg2.npy \
+      --model /models/embeddinggemma-2 --device cuda
+
+then pass --dense-vectors / --eg2-model to taguri.run or taguri.query.
 """
 from __future__ import annotations
 
@@ -24,11 +31,15 @@ def doc_text(title, text):
 
 
 class Dense:
-    def __init__(self, cache_dir=None, device="cuda", max_seq_len=512):
+    def __init__(self, cache_dir=None, device="cuda", max_seq_len=512, model=None):
+        """model: a local directory holding the model files, or None for the pinned Hugging Face revision."""
         from sentence_transformers import SentenceTransformer
 
         t0 = time.time()
-        self.model = SentenceTransformer(EG_MODEL, revision=EG_REV, device=device, cache_folder=cache_dir)
+        if model and os.path.isdir(model):
+            self.model = SentenceTransformer(model, device=device)
+        else:
+            self.model = SentenceTransformer(model or EG_MODEL, revision=None if model else EG_REV, device=device, cache_folder=cache_dir)
         self.model.max_seq_length = max_seq_len
         self.device = device
         self.load_s = time.time() - t0
@@ -57,18 +68,20 @@ class Dense:
             json.dump(info, open(path + ".json", "w"))
         return info
 
-    def searcher(self, path):
-        return DenseIndex(self, path)
+    def searcher(self, path, expect_n=None):
+        return DenseIndex(self, path, expect_n)
 
 
 class DenseIndex:
     """One corpus' vectors on the model's device; brute-force dot product."""
 
-    def __init__(self, enc: Dense, path):
+    def __init__(self, enc: Dense, path, expect_n=None):
         import torch
 
         self.enc = enc
         m = np.load(path)
+        if expect_n is not None and m.shape[0] != expect_n:
+            raise ValueError(f"{path} has {m.shape[0]} vectors but the index has {expect_n} passages: the vectors were built from a different index")
         self.M = torch.from_numpy(m).to(enc.device)
         if enc.device == "cpu":
             self.M = self.M.float()
@@ -97,10 +110,10 @@ class DenseIndex:
 class DenseClient:
     """Talks to taguri/dense_server.py (EG2 in its own Python environment)."""
 
-    def __init__(self, port=30100):
+    def __init__(self, port=30100, url=None):
         import requests
 
-        self.url, self._s = f"http://127.0.0.1:{port}", requests.Session()
+        self.url, self._s = (url or f"http://127.0.0.1:{port}").rstrip("/"), requests.Session()
         self.load_s = self._s.get(self.url, timeout=30).json()["load_s"]
 
     def build(self, db_path, out, limit=None, start=0, stop=None):
@@ -130,3 +143,38 @@ class _ClientIndex:
             self.query_s += time.perf_counter() - t0
             self.queries += 1
         return out
+
+
+def open_dense(vectors, model=None, device="cpu", url=None, expect_n=None, cache_dir=None):
+    """The object the pipeline needs (`.search(query, k) -> rids`). url: a running taguri/dense_server.py
+    (EG2 in another Python environment); otherwise the model is loaded in this process."""
+    if not os.path.exists(vectors):
+        raise FileNotFoundError(f"{vectors}: build it first with  python -m taguri.dense build --db <index.db> --out {vectors}")
+    if url:
+        return DenseClient(url=url).searcher(vectors)
+    return Dense(cache_dir=cache_dir, device=device, model=model).searcher(vectors, expect_n)
+
+
+def main():
+    import argparse
+    import sqlite3
+
+    ap = argparse.ArgumentParser(description="Build EG2 vectors for an index (one row per passage, in rid order).")
+    ap.add_argument("cmd", choices=["build"])
+    ap.add_argument("--db", required=True, help="the SQLite index built by taguri.run or tools/ingest_files.py")
+    ap.add_argument("--out", required=True, help="output .npy (float16, n x 768)")
+    ap.add_argument("--model", help="local model directory; default: the pinned Hugging Face revision")
+    ap.add_argument("--device", default="cuda")
+    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--limit", type=int, help="only the first N passages (timing test)")
+    a = ap.parse_args()
+
+    class _Ix:
+        con = sqlite3.connect(f"file:{a.db}?mode=ro", uri=True)
+
+    enc = Dense(device=a.device, model=a.model)
+    print(json.dumps(enc.build(_Ix, a.out, batch_size=a.batch, limit=a.limit)))
+
+
+if __name__ == "__main__":
+    main()

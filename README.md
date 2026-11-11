@@ -401,6 +401,7 @@ python -m venv .venv && . .venv/bin/activate
 pip install -e .                       # evalkit（只依賴 numpy）
 pip install jieba==0.42.1 opencc-python-reimplemented==0.1.7 snowballstemmer==3.1.1 tokenizers requests
 pip install 'modal[api-proxy-support]' # 要在 Modal 上跑判官時才需要
+pip install torch torchvision pillow 'sentence-transformers>=6.1.0' 'transformers>=5.19.0'   # 要開 EG2 時才需要
 ```
 
 ### 7.2 資料格式
@@ -477,6 +478,28 @@ python -m taguri.run --config N1 --dataset musique --split dev --judge sglang \
 ```
 
 伺服器要求：Gemma 4 26B-A4B，context 至少 16,384，不開 MTP 草稿頭（會讓第一個 token 的機率不穩定）。SGLang 的啟動參數見 `modal_taguri.py` 的 `start_server`。
+
+本機也可以開 EG2。先替索引建一次向量，之後查詢時帶上向量檔：
+
+```bash
+# 建向量（一段一列，float16）。--model 可以是本機的模型資料夾，不連外網也能用
+python -m taguri.dense build --db store/idx/mydocs.db --out store/idx/mydocs.eg2.npy \
+  --model /models/embeddinggemma-2 --device cuda
+
+# 單題查詢：給了 --dense-vectors 就會開 EG2
+python -m taguri.query --db store/idx/mydocs.db --doc-level --question "……" \
+  --judge llama --base-url http://127.0.0.1:8080 \
+  --dense-vectors store/idx/mydocs.eg2.npy --eg2-model /models/embeddinggemma-2 --eg2-device cpu
+
+# 整批評測
+python -m taguri.run --config N1+EG2 --dataset musique --split dev --judge llama --base-url http://127.0.0.1:8080 \
+  --dense-vectors /tmp/taguri-idx/musique.eg2.npy --eg2-model /models/embeddinggemma-2
+```
+
+- `--eg2-device cpu` 時，查詢的向量在 CPU 上算（每次約 0.07 秒），GPU 留給判官。建向量建議用 GPU：CPU 上每秒只有十幾段。
+- 向量檔的列數和索引的段落數不一樣時會直接報錯，避免拿錯檔。
+- EG2 要放在另一個 Python 環境時，起 `taguri/dense_server.py`，再用 `--eg2-url http://127.0.0.1:30100`。
+- 本機這條路驗過的範圍見 [`results/b1-b4-b7.md`](results/b1-b4-b7.md) 第 2 節。沒有在本機接真的判官跑過。
 
 ### 7.5 計分與比較
 

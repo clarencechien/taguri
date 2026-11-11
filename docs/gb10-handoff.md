@@ -326,7 +326,7 @@ python -m taguri.query --db /secure/taguri-store/idx/mydocs.db --doc-level \
 
 ### 階段 5　選配
 
-- **EG2**：只在「問法和文件用詞常常不同」或「中文問、英文文件」時值得試。企業文件的語意檢索上換到 +9.6 分，英文多跳題上沒有幫助。目前 EG2 的整合只在 Modal 入口（`modal_taguri.py`）裡，本機路徑要自己接：起 `taguri/dense_server.py`，再照 `modal_taguri.py` 裡 `DenseClient` 的用法把 `dense=` 傳給 `Engine`。先確認階段 1 到 4 再做。
+- **EG2**：只在「問法和文件用詞常常不同」或「中文問、英文文件」時值得試。企業文件的語意檢索上換到 +9.6 分，英文多跳題上沒有幫助。企業文件要追平上游的商用判官就得開（不開低 6.6 分，開了打平）。本機入口已經接好：先用 `python -m taguri.dense build --db <索引> --out <向量檔> --model <模型資料夾> --device cuda` 建向量，查詢時加 `--dense-vectors <向量檔> --eg2-model <模型資料夾>`，`taguri.run` 要把設定改成 `N1+EG2`。用法和驗過的範圍見 README 7.4 節與 [`results/b1-b4-b7.md`](../results/b1-b4-b7.md)。先確認階段 1 到 4 再做。
 - **繁中**：`data/` 裡沒有中文題組（翻譯後的語料沒有進 git）。要量繁中請直接用真實的繁中文件走階段 4。
 
 ## 6. 延遲太長時可以調的旋鈕
