@@ -4,3 +4,4 @@ __pycache__/
 *.egg-info/
 build/
 .env
+docs/report/taguri.txt.md

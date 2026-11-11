@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="imitator-style" content="v3">
+<meta name="imitator-register" content="收線的紀錄 — 一條線索怎麼一節一節拉回來，中間失手一次，後來怎麼改">
+<meta name="imitator-reference" content="《The Ashley Book of Knots》（1944）的圖版頁">
+<meta name="imitator-paper" content="hsl(44 38% 93%)">
+<meta name="imitator-accent" content="hsl(22 62% 30%)">
+<title>線索要一節一節拉回來 — Taguri 收線紀錄</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* imitator report chassis — v3
+ *
+ * Source: https://github.com/clarencechien/imitator/blob/main/style/report.css
+ * How to use it: https://github.com/clarencechien/imitator/blob/main/style/STYLE.md
+ *
+ * This is NOT a house style. A report here is an essay with a point of view —
+ * it should look like someone made it, not like it came off a line. So this
+ * file fixes only what every report must get right no matter its voice:
+ * readability, structure, responsiveness, dark mode, motion hygiene, print.
+ *
+ * Everything that carries voice — paper and ink colours, the accent, which
+ * typefaces do which job, how big the headline is, how sections are signposted
+ * — is yours to choose per report. The tokens in §1 are the seams: override
+ * them in a <style> block AFTER this one and the whole chassis follows.
+ *
+ * Paste this file verbatim. Do not link it at runtime.
+ */
+
+/* ── §1 Tokens ───────────────────────────────────────────────────────────
+ *
+ * Override any of these per report. The defaults are a plain warm neutral —
+ * deliberately unremarkable, so a report that overrides nothing is readable
+ * but obviously unfinished. Redefine BOTH modes: dark is chosen, never an
+ * automatic flip.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* --- voice: expect to override every one of these --- */
+  --paper: #fbfbfa;        /* page */
+  --card: #ffffff;         /* raised surface */
+  --ink: #1a1a19;          /* primary text */
+  --ink-2: #4a4a46;        /* secondary text */
+  --mist: #6b6b68;         /* labels, captions, axis ticks */
+  --rule: #e6e6e3;         /* hairlines */
+  --rule-hard: #d3d3ce;    /* the one heavy rule per section */
+  --accent: #b0552b;       /* links, the coloured word, section numbers */
+  --accent-soft: #efe7df;  /* accent at wash strength — chips, marks */
+
+  /* --- faces: four jobs. Give them real families; --disp and --serif may be
+         the same as --sans if the report's voice is plain. --- */
+  --sans:  ui-sans-serif, system-ui, -apple-system, "Noto Sans TC",
+           "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --serif: "Noto Serif TC", "Songti TC", "PMingLiU", Georgia, serif;
+  --disp:  var(--sans);    /* headlines */
+  --mono:  ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* --- type scale ---
+     Body is deliberately large: this is long-form prose in Chinese, read on a
+     phone as often as a laptop. 17px is the floor, not the target. */
+  --fs-body: clamp(1.0625rem, 1.01rem + .28vw, 1.1875rem);   /* 17 → 19 */
+  --fs-sm:   clamp(.875rem, .85rem + .12vw, .9375rem);       /* 14 → 15 */
+  --fs-xs:   .8125rem;                                        /* 13 — labels only */
+  --lh-body: 1.85;         /* CJK needs more leading than Latin */
+
+  --fs-display: clamp(2.6rem, 1.4rem + 5.4vw, 5.25rem);      /* the one big headline */
+  --fs-1: clamp(1.85rem, 1.45rem + 1.9vw, 2.75rem);
+  --fs-2: clamp(1.4rem, 1.24rem + .78vw, 1.85rem);
+  --fs-3: clamp(1.14rem, 1.08rem + .3vw, 1.32rem);
+
+  /* --- spacing --- */
+  --sp-1: .25rem; --sp-2: .5rem;  --sp-3: .75rem; --sp-4: 1.15rem;
+  --sp-5: 1.75rem; --sp-6: 2.75rem; --sp-7: 4.5rem;
+
+  --radius: 10px;
+  --measure: 34em;         /* prose column ≈ 34 CJK characters */
+  --page: 46rem;           /* text column */
+  --page-wide: 66rem;      /* wide devices: tables, figures, tile rows */
+
+  /* How far a wide device spills into the gutter on each side. Bounded by the
+     gutter that actually exists, so it can never push the page sideways. */
+  --bleed: min((var(--page-wide) - var(--page)) / 2, max(0px, (100vw - var(--page)) / 2));
+
+  /* --- motion ---
+     Strong curves only. The built-in CSS easings are too weak to read as
+     intentional, and ease-in on anything a reader is watching feels sluggish. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-fast: 160ms;
+  --dur: 240ms;
+  --dur-slow: 420ms;       /* entrances only — never a UI response */
+}
+
+/* Dark is a second set of choices, not an inversion. Declared under both
+   scopes so an in-page toggle wins either way. A report that overrides the
+   light tokens MUST override these too. */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --paper: #191917; --card: #222220;
+    --ink: #eeeeec; --ink-2: #b8b8b3; --mist: #9a9a95;
+    --rule: #333331; --rule-hard: #454542;
+    --accent: #e08a5c; --accent-soft: #3a2f28;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #191917; --card: #222220;
+  --ink: #eeeeec; --ink-2: #b8b8b3; --mist: #9a9a95;
+  --rule: #333331; --rule-hard: #454542;
+  --accent: #e08a5c; --accent-soft: #3a2f28;
+}
+
+/* Chart series colours are NOT part of the voice. They are the one palette a
+   report must not re-pick: the order is what keeps adjacent series apart under
+   colour blindness, and it was validated with a tool rather than an eye. Use
+   them in order, never cycle past --c6. */
+:root {
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a;
+  --c4: #eda100; --c5: #e87ba4; --c6: #008300;
+  --good: #0ca30c; --warn: #fab219; --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+    --c4: #c98500; --c5: #d55181; --c6: #008300;
+  }
+}
+:root[data-theme="dark"] {
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+  --c4: #c98500; --c5: #d55181; --c6: #008300;
+}
+
+/* ── §2 Base & readability ───────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--fs-body)/var(--lh-body) var(--sans);
+  overflow-wrap: break-word;
+  line-break: strict;
+  -webkit-text-size-adjust: 100%;
+  /* Progressive: tightens CJK punctuation where the browser supports it. */
+  text-spacing-trim: trim-start;
+}
+
+p { text-wrap: pretty; }
+h1, h2, h3, h4, .display { text-wrap: balance; }
+
+img, svg, video, canvas { max-width: 100%; height: auto; }
+a { color: var(--accent); text-underline-offset: .2em; text-decoration-thickness: from-font; }
+a:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px;
+}
+::selection { background: var(--accent-soft); }
+
+/* ── §3 Layout ───────────────────────────────────────────────────────────── */
+
+.report {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: clamp(2rem, 1.2rem + 3.5vw, 5rem) clamp(1.15rem, .7rem + 2.4vw, 2.5rem) 6rem;
+}
+.report > * { max-width: var(--measure); }
+/* Figures, tables and full-width devices opt out of the prose measure. A
+   <section> or <article> is a pass-through: it must not inherit the measure,
+   or every table inside it is trapped at 34em — so the prose cap is re-applied
+   to its children instead. */
+.report :is(figure, .table-scroll, .wide, hr, .tiles, .cols, .banner) { max-width: none; }
+.report > :is(section, article) { max-width: none; }
+.report > :is(section, article) > * { max-width: var(--measure); }
+.report > :is(section, article) > :is(figure, .table-scroll, .wide, hr, .tiles, .cols, .banner) { max-width: none; }
+/* Grid items get min-width: 0 so one unbreakable string cannot widen the track.
+   Any grid you write yourself needs the same — see STYLE.md. */
+.cols > *, .tiles > * { min-width: 0; }
+.cols  { display: grid; gap: var(--sp-5); grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); }
+.tiles { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); margin-block: var(--sp-5); }
+.card  { background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); padding: var(--sp-5); }
+
+/* The text column stays narrow; the wide devices breathe out into the gutter.
+   Tables get this by default — a table trapped at the prose measure is the
+   single most common way a report becomes unusable on a desktop. .wide opts
+   anything else in (a tile row, a chart, a figure).
+
+   It widens by whatever gutter actually exists and no more, so it can never
+   push the page sideways — which the obvious `width + 50% margin` breakout
+   does the moment its percentage resolves against the wrong box.
+   Declared last on purpose: any component using the `margin` shorthand would
+   otherwise zero out the inline margins this depends on. */
+.wide, .table-scroll { margin-inline: calc(-1 * var(--bleed)); }
+
+/* ── §4 Structure & editorial devices ────────────────────────────────────── */
+
+/* The headline. .display is the one oversized thing in the document; a
+   coloured <em> inside it is the report's signature — use it once. */
+.display {
+  font-family: var(--disp);
+  font-size: var(--fs-display);
+  line-height: 1.04;
+  letter-spacing: -.025em;
+  font-weight: 700;
+  margin: 0 0 var(--sp-4);
+}
+.display em { font-style: normal; color: var(--accent); }
+
+h1, h2, h3 { font-family: var(--disp); line-height: 1.25; letter-spacing: -.012em; margin: 0; font-weight: 680; }
+h1 { font-size: var(--fs-1); }
+h2 { font-size: var(--fs-2); margin: var(--sp-7) 0 var(--sp-4); }
+h3 { font-size: var(--fs-3); margin: var(--sp-5) 0 var(--sp-2); }
+h2 + h3 { margin-top: var(--sp-4); }
+p, ul, ol { margin: 0 0 var(--sp-4); }
+li + li { margin-top: var(--sp-2); }
+
+/* The signpost. Mono, letterspaced, small — it gives a document a spine:
+   序幕 · PROLOGUE / 01 · VOCABULARY / 第一幕 · 1973 */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: flex; align-items: center; gap: var(--sp-3);
+  margin: var(--sp-7) 0 var(--sp-2);
+}
+.eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+.eyebrow + h2 { margin-top: 0; }
+
+.lede { font-size: 1.15em; line-height: 1.7; color: var(--ink-2); }
+.byline { font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: .06em; color: var(--mist); }
+
+/* A sentence worth stopping on. Not a highlighter pen on a whole paragraph. */
+.mark { background: var(--accent-soft); box-shadow: 0 0 0 .18em var(--accent-soft); border-radius: 2px; }
+
+/* An inverted label that interrupts the column: 接回 VOL.1 */
+.chip {
+  display: inline-block; background: var(--ink); color: var(--paper);
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: .08em;
+  padding: .2em .55em; border-radius: 3px; vertical-align: .08em;
+}
+.chip.soft { background: var(--accent-soft); color: var(--ink-2); }
+
+/* A line pulled out of the argument, set large. Never a repeat of the lede. */
+.pull {
+  font-family: var(--serif);
+  font-size: clamp(1.35rem, 1.1rem + 1.2vw, 1.9rem);
+  line-height: 1.5; color: var(--ink);
+  border-left: 3px solid var(--accent);
+  padding: var(--sp-2) 0 var(--sp-2) var(--sp-5);
+  margin-block: var(--sp-6);
+}
+
+blockquote { margin-block: var(--sp-5); padding-left: var(--sp-5); border-left: 2px solid var(--rule-hard); color: var(--ink-2); }
+.note { border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--card); padding: var(--sp-5); margin-block: var(--sp-6); }
+.note > :last-child { margin-bottom: 0; }
+.note .head { font-weight: 680; margin-bottom: var(--sp-2); }
+.note.good { border-left-color: var(--good); }
+.note.warn { border-left-color: var(--warn); }
+.note.critical { border-left-color: var(--critical); }
+
+code, kbd, samp { font-family: var(--mono); font-size: .88em; }
+/* A URL or a scope string inside <code> has no break opportunity, so it becomes
+   the min-content width of everything containing it. Inside a grid track — whose
+   default min-width is auto, i.e. min-content — that one string widens the track
+   past the viewport and the whole page scrolls sideways. Breaking it here fixes
+   the cause; see also the note on custom grids in STYLE.md. */
+:not(pre) > code {
+  background: var(--accent-soft); padding: .12em .4em; border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+pre {
+  background: var(--card); border: 1px solid var(--rule);
+  border-top: 3px solid var(--accent); border-radius: var(--radius);
+  padding: var(--sp-5); overflow-x: auto;
+  font-size: var(--fs-sm); line-height: 1.7;
+}
+hr { border: 0; border-top: 1px solid var(--rule); margin-block: var(--sp-7); }
+
+/* ── §5 Figures, charts, tables ──────────────────────────────────────────── */
+
+.stat { background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); padding: var(--sp-3) var(--sp-4); }
+.stat .label { font-size: var(--fs-xs); color: var(--mist); margin: 0 0 var(--sp-1); }
+.stat .value { font-family: var(--disp); font-size: 1.75rem; font-weight: 680; line-height: 1.15; letter-spacing: -.02em; }
+.stat .delta { font-size: var(--fs-xs); color: var(--ink-2); margin-top: var(--sp-1); display: flex; align-items: center; gap: .3em; }
+.delta.up::before   { content: "▲"; font-size: .8em; color: var(--good); }
+.delta.down::before { content: "▼"; font-size: .8em; color: var(--critical); }
+
+/* At most one per report. */
+.hero { font-family: var(--disp); font-size: clamp(3rem, 2rem + 4vw, 5rem); font-weight: 700; line-height: 1; letter-spacing: -.03em; margin: var(--sp-2) 0; }
+
+figure { margin-block: var(--sp-6); }
+figure > .title { font-family: var(--disp); font-size: var(--fs-3); font-weight: 680; margin: 0 0 var(--sp-1); }
+figure > .subtitle, figure > figcaption { font-size: var(--fs-sm); color: var(--mist); }
+figure > .subtitle { margin: 0 0 var(--sp-4); }
+figure > figcaption { margin-top: var(--sp-3); }
+
+/* A viewBox scales the TEXT too: let a chart shrink freely to a 375px screen
+   and its 12px labels render at 6px. So the rendered width is bounded and the
+   chart scrolls in its own box below the floor, like a wide table.
+   Author charts on a 640-unit viewBox with font-size 12. */
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; height: auto; width: 100%; min-width: 34rem; max-width: 44rem; overflow: visible; }
+.chart .grid  { stroke: var(--rule); stroke-width: 1; }
+.chart .axis  { fill: var(--mist); font-size: 12px; font-family: var(--sans); font-variant-numeric: tabular-nums; }
+.chart .label { fill: var(--ink-2); font-size: 12px; font-family: var(--sans); }
+.chart .line  { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .dot   { stroke: var(--card); stroke-width: 2; }
+.chart .bar   { rx: 4; }
+
+.legend { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); font-size: var(--fs-sm); color: var(--ink-2); margin-top: var(--sp-3); }
+.legend .key { display: inline-flex; align-items: center; gap: .45em; }
+.legend .swatch { width: .7em; height: .7em; border-radius: 2px; flex: none; }
+
+.datatable > summary {
+  cursor: pointer; font-size: var(--fs-sm); color: var(--mist);
+  padding: var(--sp-2) 0; min-height: 44px;
+  display: flex; align-items: center; gap: .4em; list-style: none;
+}
+.datatable > summary::-webkit-details-marker { display: none; }
+.datatable > summary::before { content: "▸"; transition: transform var(--dur-fast) var(--ease-out); }
+.datatable[open] > summary::before { transform: rotate(90deg); }
+
+/* Every table lives in this wrapper: it scrolls itself instead of widening
+   the page. On a desktop it should never need to — cells wrap and the wrapper
+   widens into the gutter. On a phone a table with real columns still has to
+   scroll, and that is the correct trade: a model number broken across three
+   lines is worse than a swipe. `overscroll-behavior-inline` keeps that swipe
+   inside the table instead of dragging the page or triggering back-navigation. */
+.table-scroll { overflow-x: auto; overscroll-behavior-inline: contain; margin-block: var(--sp-5); border: 1px solid var(--rule); border-radius: var(--radius); background: var(--card); }
+
+/* Phone: the first column is the row's label — pin it, so what you are reading
+   the specs OF stays on screen while you swipe through them, and the shadow at
+   its edge says there is more to the right. Add .plain to opt a table out (a
+   two-column table, or one whose first column is not a label). Semantics are
+   untouched: nothing here changes `display`, so the table is still a table to
+   a screen reader. */
+@media (max-width: 40rem) {
+  .table-scroll:not(.plain) :is(th, td):first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--card);
+    box-shadow: 1px 0 0 var(--rule), 7px 0 7px -7px rgb(0 0 0 / .22);
+  }
+  .table-scroll:not(.plain) th:first-child { z-index: 2; }
+}
+table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
+th, td { padding: .7rem .9rem; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 620; color: var(--ink-2); background: var(--card); position: sticky; top: 0; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Cells wrap by default: nowrap makes a table's min-content width the sum of
+   every cell's longest unbroken line, which is what forces the horizontal
+   scroll. Opt individual cells out — a model number, a date, a figure — with
+   .nowrap. (`.wrap` is the old opt-in, kept so it stays a no-op.) */
+.nowrap, td.nowrap, th.nowrap { white-space: nowrap; }
+td.wrap { white-space: normal; }
+/* A mono sub-label under a term, the way a glossary sets it. */
+td .sub { display: block; font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: .08em; color: var(--mist); text-transform: uppercase; margin-top: .15em; }
+
+/* ── §6 Motion ───────────────────────────────────────────────────────────────
+ *
+ * A report is read, not operated, so motion here has exactly one job: mark
+ * arrival. Entrances only, on the reader's own scroll, and only for elements
+ * that carry a beat — a section opening, a figure, a pulled line. Never on
+ * body paragraphs, and never anything that has to finish before the reader
+ * can read.
+ *
+ * All of it is progressive: without scroll-driven animation support every
+ * element is simply already visible. Nothing is gated behind motion.
+ */
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+    @keyframes reveal-in {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: none; }
+    }
+    /* Group entrance: 30–80ms between items reads as one gesture. Longer
+       feels slow, and it is decorative — nothing waits for it. */
+    .stagger > * { animation: reveal-in var(--dur-slow) var(--ease-out) both; }
+    .stagger > :nth-child(2) { animation-delay: 60ms; }
+    .stagger > :nth-child(3) { animation-delay: 120ms; }
+    .stagger > :nth-child(4) { animation-delay: 180ms; }
+    .stagger > :nth-child(n+5) { animation-delay: 240ms; }
+  }
+}
+
+/* The theme toggle: one fixed button that flips data-theme on <html>. It exists
+   because a reader whose every device is dark can otherwise never see the light
+   palette a report designed — and vice versa. State lives in a variable (storage
+   APIs throw in the sandbox), so it resets on reload; that is the correct trade.
+   Until the reader clicks, <html> stays un-stamped and the page follows the
+   system. Markup and the five-line script are in STYLE.md, floor item 5. */
+.theme-toggle {
+  position: fixed; top: 1rem; right: 1rem; z-index: 20;
+  min-height: 44px; padding: .4rem .85rem;
+  background: var(--card); color: var(--ink-2);
+  border: 1px solid var(--rule); border-radius: var(--radius);
+  font: var(--fs-xs)/1 var(--mono); letter-spacing: .06em; cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--accent); color: var(--ink); }
+@media (max-width: 40rem) { .theme-toggle { top: auto; bottom: 1rem; } }
+
+/* Reading progress, drawn by the scroll position itself — no JS, no listener. */
+.progress {
+  position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 10;
+  background: var(--accent); transform-origin: 0 50%; transform: scaleX(0);
+}
+@supports (animation-timeline: scroll()) {
+  .progress { animation: progress linear both; animation-timeline: scroll(root block); }
+  @keyframes progress { to { transform: scaleX(1); } }
+}
+@media (prefers-reduced-motion: reduce) { .progress { display: none; } }
+
+/* Pressable things acknowledge the press. Hover motion is gated — a touch
+   device fires :hover on tap and the animation reads as a glitch. */
+@media (hover: hover) and (pointer: fine) {
+  a[href], .chip, summary { transition: color var(--dur-fast) var(--ease-out); }
+}
+button:active, summary:active { transform: scale(.98); }
+button, summary { transition: transform var(--dur-fast) var(--ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Gentler, not zero: colour and opacity stay, movement goes. */
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; scroll-behavior: auto !important;
+  }
+}
+
+/* ── §7 Print & forced colours ───────────────────────────────────────────── */
+
+@media print {
+  :root { --paper: #fff; --card: #fff; --ink: #000; --ink-2: #333; --mist: #555; --rule: #ccc; }
+  .report { max-width: none; padding: 0; }
+  .report > * { max-width: none; }
+  .progress, .theme-toggle, .datatable > summary { display: none; }
+  .datatable { display: block; }
+  /* A scroll-driven entrance never runs on paper — without this, everything
+     marked .reveal prints as blank space. Content is never gated behind
+     motion; this is the rule that keeps that true. */
+  .reveal, .stagger > * { animation: none !important; opacity: 1 !important; transform: none !important; }
+  figure, .card, .stat, .table-scroll, .note, pre { break-inside: avoid; }
+  h2, h3, .eyebrow { break-after: avoid; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .8em; color: #555; }
+}
+
+@media (forced-colors: active) {
+  .card, .stat, .table-scroll, .note, pre, .chip { border: 1px solid CanvasText; }
+  .mark { background: Mark; color: MarkText; box-shadow: none; }
+}
+
+
+/* REGISTER:  收線的紀錄 — 一條線索怎麼一節一節拉回來，中間失手一次，後來怎麼改。讀者是要決定這東西值不值得往下做的人。
+   REFERENCE: 《The Ashley Book of Knots》（1944）的圖版頁 — 編號的條目、線描、每條一段說明。
+   PAPER:     放了八十年的未塗佈書頁紙 — 偏黃的奶油色，hsl(44 38% 93%)。
+   VOICE:     焦油麻繩的深褐只給標題那個詞、條目編號和連結，明體標題，等寬體的條目編號。
+   NOT:       儀表板。沒有互動元件，數字是證據。
+   RECENT:    unavailable — 這個環境不能用 token 連到 host，沒有比對最近三份。 */
+:root {
+  --paper: hsl(44 38% 93%); --card: hsl(44 44% 96%);
+  --ink: hsl(30 18% 13%); --ink-2: hsl(30 12% 28%); --mist: hsl(32 10% 38%);
+  --rule: hsl(42 24% 82%); --rule-hard: hsl(40 20% 68%);
+  --accent: hsl(22 62% 30%); --accent-soft: hsl(34 46% 85%);
+  --disp: "Noto Serif TC", Georgia, serif;
+  --sans: "Noto Sans TC", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --paper: hsl(38 16% 8%); --card: hsl(38 14% 12%);
+    --ink: hsl(42 28% 90%); --ink-2: hsl(40 16% 72%); --mist: hsl(38 10% 60%);
+    --rule: hsl(38 10% 22%); --rule-hard: hsl(38 10% 32%);
+    --accent: hsl(28 62% 68%); --accent-soft: hsl(28 26% 20%);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: hsl(38 16% 8%); --card: hsl(38 14% 12%);
+  --ink: hsl(42 28% 90%); --ink-2: hsl(40 16% 72%); --mist: hsl(38 10% 60%);
+  --rule: hsl(38 10% 22%); --rule-hard: hsl(38 10% 32%);
+  --accent: hsl(28 62% 68%); --accent-soft: hsl(28 26% 20%);
+}
+/* 條目：圖版頁的編號說明。一格編號、一格內文。 */
+.entries { list-style: none; padding: 0; margin: var(--sp-5) 0; display: grid; gap: var(--sp-4); }
+.entries > li { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); gap: var(--sp-3); align-items: baseline;
+  border-top: 1px solid var(--rule); padding-top: var(--sp-3); }
+.entries > li > .no { font-family: var(--mono); font-size: var(--fs-sm); color: var(--accent); letter-spacing: .04em; }
+.entries > li > div { min-width: 0; }
+.entries > li > div > strong { font-family: var(--disp); }
+figure { margin-inline: 0; }
+
+</style>
+<body>
+
+<div class="progress"></div>
+<button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false">theme · auto</button>
+
+<main class="report">
+
+  <p class="eyebrow">收線紀錄 · TAGURI · 2026-11</p>
+  <h1 class="display">線索要<br><em>一節一節</em><br>拉回來</h1>
+  <p class="lede">有些問題的答案散在好幾份文件裡。讀到第一份，才知道第二份該找什麼。這份紀錄講一個只靠本機模型的檢索做法，它第一次試的時候輸了十二分，後來怎麼追回來，以及現在還不知道的事。</p>
+  <p class="byline">Taguri POC · 數字出自 github.com/clarencechien/taguri 的 results/</p>
+
+  <p class="eyebrow">№ 1 · 第二段在哪裡</p>
+  <h2>搜尋找不到的那一段</h2>
+
+  <p>拿一個真的測試題來看。問題是「Erik Hort 的出生地屬於哪個郡」。資料庫裡有兩段文字跟它有關。</p>
+
+  <ul class="entries">
+    <li><span class="no">第一段</span><div>Erik Hort 生於 Montebello。</div></li>
+    <li><span class="no">第二段</span><div>Montebello 是 Rockland County 的一個村。</div></li>
+  </ul>
+
+  <p>第一段很好找，問題裡就有他的名字。第二段跟問題幾乎沒有共同的字。用關鍵字找不到它，用語意相似度也排不到前面，因為問題裡根本沒提 Montebello。</p>
+
+  <p><span class="mark">要先讀懂第一段，才知道下一步該查 Montebello。</span>這種題目叫多跳題。企業裡的問題常常長這樣，例如「這個警報上次換的零件，供應商是哪一家」。</p>
+
+  <p class="eyebrow">№ 2 · 手繰り</p>
+  <h2>讓模型只做選擇題</h2>
+
+  <p>Taguri 這個名字是日文的「手繰り」，意思是把線一把一把收回來。做法分兩種角色。程式負責找候選和排順序。模型當判官，只回答選擇題，而且只讀它回答的第一個字的機率，不讓它寫字。</p>
+
+  <ul class="entries">
+    <li><span class="no">一</span><div><strong>先撈。</strong>用關鍵字從資料庫取出五十段可能相關的內容。</div></li>
+    <li><span class="no">二</span><div><strong>逐段判。</strong>判官看每一段，回答這段對問題有沒有用。</div></li>
+    <li><span class="no">三</span><div><strong>挑線索。</strong>程式從有用的段落裡列出幾個詞，判官選下一步該查哪一個。</div></li>
+    <li><span class="no">四</span><div><strong>再撈一次。</strong>把選到的詞加進查詢，回到第二步。這樣走兩輪。</div></li>
+    <li><span class="no">五</span><div><strong>交出十段。</strong>依判官的把握程度排序。</div></li>
+  </ul>
+
+  <p>整件事不呼叫任何外部服務。索引是一個 SQLite 檔案，判官是一顆開源的 Gemma 4。建索引的時候完全不用模型。</p>
+
+  <p class="eyebrow">№ 3 · 失手</p>
+  <h2>省掉的那一步，剛好是最需要的</h2>
+
+  <p>第一版的規格有一條省錢的規定，判過的段落不再重判。照這條做出來，在四百題的開發集上比基線低了 11.9 分，離事先訂的及格線很遠。照計畫這裡就該停下來。</p>
+
+  <p>停下來之後做的是拆帳。把每一個該找到卻沒找到的段落，歸到它卡住的那一步。</p>
+
+  <div class="tiles wide stagger">
+    <div class="stat"><p class="label">第一輪就撈到的證據</p><div class="value">67%</div><div class="delta">當時還沒有任何上下文</div></div>
+    <div class="stat"><p class="label">沒有上下文時判「有用」</p><div class="value">43%</div><div class="delta">一半以上被判錯</div></div>
+    <div class="stat"><p class="label">換成完美的判官</p><div class="value">91</div><div class="delta">流程本身撐得住</div></div>
+  </div>
+
+  <p>原因很直白。第二跳的段落，在還不知道橋接的那個詞之前，本來就看不出跟問題有關。判官在第一輪說「沒用」是合理的。問題出在後來找到第一段了，卻不回頭再看一次。</p>
+
+  <p class="pull">便宜是靠少判換來的，少掉的偏偏是帶著新證據回頭看的那幾次。</p>
+
+  <p>改法有兩個，都很小。每一輪結束，把分數最高的二十段帶著目前的證據再判一次。另外，如果沒有任何段落過關，就先拿分數最高的兩段當暫定證據，讓後面有東西可以接。</p>
+
+  <figure class="reveal">
+    <p class="title">一步一步追回來</p>
+    <p class="subtitle">校準用的 150 題，前五段撈到的證據比例。直線是同一批題目上的基線。</p>
+    <div class="chart">
+<svg viewBox="0 0 640 160" role="img" aria-label="照原規格 64.3；加上每輪重判 74.9；再加暫定證據 78.7；再換問法 80.6">
+<line class="grid" x1="479.2" y1="6" x2="479.2" y2="154"/>
+<text class="axis" x="483.2" y="12">基線 77.1</text>
+<text class="axis" x="130" y="30" text-anchor="end">照原規格</text>
+<rect class="bar" x="140" y="16" width="282.9" height="20" fill="var(--c1)"/>
+<text class="label" x="430.9" y="30">64.3</text>
+<text class="axis" x="130" y="66" text-anchor="end">加上每輪重判</text>
+<rect class="bar" x="140" y="52" width="329.6" height="20" fill="var(--c1)"/>
+<text class="label" x="477.6" y="66">74.9</text>
+<text class="axis" x="130" y="102" text-anchor="end">再加暫定證據</text>
+<rect class="bar" x="140" y="88" width="346.3" height="20" fill="var(--c1)"/>
+<text class="label" x="494.3" y="102">78.7</text>
+<text class="axis" x="130" y="138" text-anchor="end">再換問法</text>
+<rect class="bar" x="140" y="124" width="354.6" height="20" fill="var(--c1)"/>
+<text class="label" x="502.6" y="138">80.6</text>
+</svg>
+    </div>
+    <details class="datatable">
+      <summary>看數字</summary>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>做法</th><th class="num">前五段撈到的比例</th><th class="num">每題判斷次數</th></tr></thead>
+          <tbody>
+            <tr><td>照原規格</td><td class="num">64.3</td><td class="num">111</td></tr>
+            <tr><td>加上每輪重判</td><td class="num">74.9</td><td class="num">140</td></tr>
+            <tr><td>再加暫定證據</td><td class="num">78.7</td><td class="num">147</td></tr>
+            <tr><td>再換問法</td><td class="num">80.6</td><td class="num">143</td></tr>
+            <tr><td>基線（上游迴圈配同一顆模型）</td><td class="num">77.1</td><td class="num">334</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+    <figcaption>這 150 題只用來調整。正式的成績在下一節，用的是沒碰過的 700 題。</figcaption>
+  </figure>
+
+  <p class="eyebrow">№ 4 · 收上來的東西</p>
+  <h2>跟商用判官打平</h2>
+
+  <div class="hero reveal">80.2</div>
+  <p class="byline">沒碰過的 700 題，前五段撈到的證據比例。上游做法配商用判官是 81.0。</p>
+
+  <p>兩者差 0.8 分，統計上分不出高低（95% 信賴區間從負 2.6 到正 1.0）。測試題只跑一次，中途沒有調整。開發時的成績是 80.2，測試也是 80.2，沒有只在自己調過的題目上好看。</p>
+
+  <figure class="reveal">
+    <p class="title">四種做法，同一批 700 題</p>
+    <p class="subtitle">MuSiQue 測試集，前五段撈到的證據比例。</p>
+    <div class="chart">
+<svg viewBox="0 0 640 160" role="img" aria-label="只用關鍵字 48.9；上游迴圈＋reranker 66.2；Taguri 80.2；上游迴圈＋商用判官 81.0">
+<text class="axis" x="150" y="30" text-anchor="end">只用關鍵字</text>
+<rect class="bar" x="160" y="16" width="205.4" height="20" fill="var(--c1)"/>
+<text class="label" x="373.4" y="30">48.9</text>
+<text class="axis" x="150" y="66" text-anchor="end">上游迴圈＋reranker</text>
+<rect class="bar" x="160" y="52" width="278.0" height="20" fill="var(--c1)"/>
+<text class="label" x="446.0" y="66">66.2</text>
+<text class="axis" x="150" y="102" text-anchor="end">Taguri</text>
+<rect class="bar" x="160" y="88" width="336.8" height="20" fill="var(--c1)"/>
+<text class="label" x="504.8" y="102">80.2</text>
+<text class="axis" x="150" y="138" text-anchor="end">上游迴圈＋商用判官</text>
+<rect class="bar" x="160" y="124" width="340.2" height="20" fill="var(--c1)"/>
+<text class="label" x="508.2" y="138">81.0</text>
+</svg>
+    </div>
+    <details class="datatable">
+      <summary>看數字</summary>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>做法</th><th class="num">前五段</th><th class="num">前十段全部找齊的題目</th></tr></thead>
+          <tbody>
+            <tr><td>只用關鍵字</td><td class="num">48.9</td><td class="num">18.7%</td></tr>
+            <tr><td>上游迴圈＋reranker</td><td class="num">66.2</td><td class="num">44.1%</td></tr>
+            <tr><td>Taguri</td><td class="num">80.2</td><td class="num">71.9%</td></tr>
+            <tr><td>上游迴圈＋商用判官</td><td class="num">81.0</td><td class="num">69.9%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </figure>
+
+  <p>成績一樣，花的力氣不一樣。</p>
+
+  <div class="tiles wide stagger">
+    <div class="stat"><p class="label">每題判斷次數</p><div class="value">143</div><div class="delta">基線是 334 次</div></div>
+    <div class="stat"><p class="label">每千題運算成本</p><div class="value">$1</div><div class="delta">商用判官約 $4.3</div></div>
+    <div class="stat"><p class="label">外部服務</p><div class="value">0</div><div class="delta">模型和資料都在本機</div></div>
+  </div>
+
+  <p>判官挑線索這件事本身也量過。把它換成「直接取最罕見的兩個詞」，成績掉 2.2 分，全部找齊的題目少 6 個百分點。</p>
+
+  <p class="eyebrow">№ 5 · 換一片海</p>
+  <h2>沒看過的資料上還成立嗎</h2>
+
+  <p>在自己調過的題組上好看不算數。下面三個題組都沒有拿來調過任何參數。</p>
+
+  <div class="table-scroll wide">
+    <table>
+      <thead><tr><th>題組</th><th class="num">只用關鍵字</th><th class="num">Taguri</th><th class="wrap">結果</th></tr></thead>
+      <tbody>
+        <tr><td>新聞<span class="sub">MultiHop-RAG · 300 題</span></td><td class="num">52.4</td><td class="num">72.2</td><td class="wrap">和基線的 70.9 持平</td></tr>
+        <tr><td>企業文件<span class="sub">EnterpriseRAG · 51 萬份</span></td><td class="num">69.0</td><td class="num">74.5</td><td class="wrap">比關鍵字高 5.5 分，比上游紀錄的商用判官低約 6.6 分</td></tr>
+        <tr><td>企業文件，問法跟文件用詞不同<span class="sub">同上 · 125 題</span></td><td class="num">42.4</td><td class="num">52.8</td><td class="wrap">加上一個向量模型補撈後到 62.4</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>企業文件那一組還接上了回答。同一顆模型讀找出來的十份文件作答，抽一百題。只用關鍵字時答對 47 題，用 Taguri 答對 64 題，直接把標準文件給它是 83 題。這個評分是模型自己打的，沒有人工核對，只能看方向。</p>
+
+  <div class="note warn">
+    <p class="head">有一類題目沒有進步</p>
+    <p>「把某個專案的相關文件全部找齊」這種題目，Taguri 跟關鍵字一樣差。它的設計是往下一跳走，沒有設計成把同一件事的文件收齊。</p>
+  </div>
+
+  <p class="eyebrow">№ 6 · 中文</p>
+  <h2>搬到中文掉了二十一分，其中八分是資料的問題</h2>
+
+  <p>把一百題和它的資料庫翻成繁體中文，再轉一份簡體，三種語言跑同一套流程。英文 80.3，繁中 58.6，簡中 59.4。繁簡之間沒有差別，字體的正規化沒有問題。</p>
+
+  <p>差距拆開來看，有一塊是翻譯自己造成的。二十九題的問題裡留著英文名字，資料庫那邊的標題卻翻成了中文，兩邊對不起來。重翻問題之後，繁中回到 64.8。</p>
+
+  <p>另一塊是線索的品質。英文靠大寫字找專有名詞，中文沒有大寫，程式列給判官選的詞變成「現況」「領銜」這種斷詞碎片。改成只列人名地名和機構名之後，繁中到 66.3，離英文還差 14 分。</p>
+
+  <p>順手測了一件事。中文問題直接查英文資料庫，不加向量模型時前五段只撈到 16.6，加上之後是 65.4，跟先把文件翻成中文再查一樣好。第一輪靠向量模型找到入口，之後的線索是從英文證據裡抽出來的英文詞，後面幾輪就回到英文查英文。</p>
+
+  <p class="eyebrow">№ 7 · 還沒收完的線</p>
+  <h2>這是一件資產，還稱不上產品</h2>
+
+  <p>現在有的是一個能重複使用的檢索元件，加上證明它有效的紀錄。它沒有畫面，沒有權限控管，不會自己寫答案。下面四件事還不知道。</p>
+
+  <ul class="entries">
+    <li><span class="no">a</span><div><strong>一個問題要等多久。</strong>所有實驗都是十六題一起跑，量到的是吞吐量。單獨一題的等待時間沒有量過。</div></li>
+    <li><span class="no">b</span><div><strong>在公司的機器上是什麼樣子。</strong>實驗在雲端的 GPU 上做，模型權重和伺服器都跟地端不同。</div></li>
+    <li><span class="no">c</span><div><strong>自己的文件。</strong>會議記錄只有間接的數字，工廠記錄完全沒有，真實的繁中文件也沒有。</div></li>
+    <li><span class="no">d</span><div><strong>很大的資料庫。</strong>一百五十萬段的時候，每題要等幾分鐘，慢在關鍵字那一層。</div></li>
+  </ul>
+
+  <p>這四件事裡，前三件不用再花雲端的錢。把它搬到不連外網的機器上，照著接手文件跑一遍就知道了。整個實驗到這裡花了大約三十美元。</p>
+
+  <p class="byline">程式、每一段的報告與接手文件：github.com/clarencechien/taguri</p>
+
+</main>
+
+<script>
+(() => {
+  const root = document.documentElement, btn = document.getElementById('theme-toggle');
+  let dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  btn.textContent = 'theme · ' + (dark ? 'dark' : 'light');
+  btn.addEventListener('click', () => {
+    dark = !dark; root.dataset.theme = dark ? 'dark' : 'light';
+    btn.textContent = 'theme · ' + (dark ? 'dark' : 'light'); btn.setAttribute('aria-pressed', 'true');
+  });
+})();
+</script>
+
+</body>
+</html>
