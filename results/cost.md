@@ -63,6 +63,7 @@
 | **Session B** | $48 | **約 $25.54**（GPU 約 13.1 小時） |
 | **全案** | $60 | **約 $29.52** |
 
+- Session A 在 2026-11-11 另外做了歸因補測（B0 跑 dev-zh 與 EnterpriseRAG 60 題），約 $3.6，不在上表。加上去全案約 $33。數字出自 [`handoff/A-to-B-attribution.md`](../handoff/A-to-B-attribution.md)，同樣是估算。
 - 失敗、中止、沒有採用的執行合計約 $2.9（S6 約 $0.83、S7 約 $0.94、S10 約 $1.07）。
 - 所有數字都是「容器存活秒數 × $1.95／小時」，**沒有和 Modal 帳單核對**。CPU 容器（EnterpriseRAG 的資料準備）用 $0.20 概估。
 

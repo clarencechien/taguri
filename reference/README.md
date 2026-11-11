@@ -49,3 +49,28 @@ B0 的檔案只涵蓋 dev（MuSiQue 300 題、2Wiki 100 題）；其他方法在
 | `musique/taguri_n0.jsonl` | 只有詞彙層 | dev 300 題（R@5 47.72） |
 | `2wikimultihopqa/taguri_n1.jsonl` | N1 | dev 100 題（R@5 100.00） |
 | `multihop-rag/taguri_n1.jsonl` | N1 | sample300（R@10 72.17） |
+
+## 歸因補測的逐題分數（還沒進 repo）
+
+Session A 在 [`handoff/A-to-B-attribution.md`](../handoff/A-to-B-attribution.md) 第 5 節列了下面這些檔案。2026-11-11 只收到說明文件，檔案本身還沒有放進來。收到之後放在這裡，再把這一段改成和上面一樣的表。
+
+| 檔案 | 內容 | 題數 |
+|---|---|---:|
+| `enterprise/sag2_jev.jsonl` | SAG2＋Jev，文件層級 | 470 |
+| `enterprise/bm25_upstream.jsonl` | 上游 BM25，文件層級 | 470 |
+| `enterprise/b0.jsonl` | B0，只有專案相關和完整性 | 60 |
+| `musique-zhtw2/` 的 `b0.jsonl`、`b0_h0.jsonl`、`b0_h1.jsonl`、`bm25.jsonl` | B0 最終與各階段、上游 BM25，切分 `dev_zh` | 100 |
+| `musique-zhcn2/` 同名四個檔 | 簡中 | 100 |
+
+Taguri 這一側要配對用的逐題分數已經匯出（2026-11-11，從既有的 `run.jsonl` 重新計分，平均值和各段報告一致）：
+
+| 檔案 | 內容 | 題數 | 平均 |
+|---|---|---:|---|
+| `enterprise/taguri_n0.jsonl` | 只有詞彙層，文件層級 | 470 | R@10 68.98 |
+| `enterprise/taguri_n1.jsonl` | N1，文件層級 | 470 | R@10 74.50 |
+| `enterprise/taguri_n1_eg2.jsonl` | N1＋EG2，只有基本檢索和語意檢索 | 300 | R@10 79.00 |
+| `musique-zhtw2/taguri_n0.jsonl`、`taguri_n1.jsonl`、`taguri_n1_eg2.jsonl` | 繁中，重翻問題後的版本，切分 `dev_zh` | 100 | R@5 38.58、66.33、66.42 |
+| `musique-zhcn2/` 同名三個檔 | 簡中 | 100 | R@5 38.58、67.58、71.58 |
+| `musique-dev-zh-en/` 同名三個檔 | 同一批 100 題的英文原題（`data/musique` 的切分 `dev_zh_source`） | 100 | R@5 46.08、80.25、81.58 |
+
+EnterpriseRAG 和中文題組的題目檔不在 repo 裡（在 Volume `taguri-b-results`），用 `evalkit compare` 時要用 `--root` 指到放題目檔的資料夾。
