@@ -117,4 +117,4 @@ Session A 在 B0 上看到的型態是，這類題目裡判官把太多非證據
 
 ## 5. 之後可以做的事
 
-還沒動手。排序和理由寫在 [`TODO.md`](../TODO.md) 的 E 節。
+排序和理由寫在 [`TODO.md`](../TODO.md) 的 E 節。其中第 1 到 3 項已經做完，結果在 [`attribution-followup.md`](attribution-followup.md)。最重要的一個是加了 EG2 之後企業文件整體追平 SAG2＋Jev（−0.39，區間 −3.69 到 +3.00）。

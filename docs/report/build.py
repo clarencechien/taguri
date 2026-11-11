@@ -202,7 +202,7 @@ BODY = f"""
       <thead><tr><th>題組</th><th class="num">只用關鍵字</th><th class="num">Taguri</th><th class="wrap">結果</th></tr></thead>
       <tbody>
         <tr><td>新聞<span class="sub">MultiHop-RAG · 300 題</span></td><td class="num">52.4</td><td class="num">72.2</td><td class="wrap">和基線的 70.9 持平</td></tr>
-        <tr><td>企業文件<span class="sub">EnterpriseRAG · 51 萬份</span></td><td class="num">69.0</td><td class="num">74.5</td><td class="wrap">比關鍵字高 5.5 分，比上游做法配商用判官低 6.6 分</td></tr>
+        <tr><td>企業文件<span class="sub">EnterpriseRAG · 51 萬份</span></td><td class="num">69.0</td><td class="num">74.5</td><td class="wrap">比關鍵字高 5.5 分，比上游做法配商用判官低 6.6 分。加上向量模型補撈後是 80.7，和商用判官的 81.1 打平</td></tr>
         <tr><td>企業文件，問法跟文件用詞不同<span class="sub">同上 · 125 題</span></td><td class="num">42.4</td><td class="num">52.8</td><td class="wrap">加上一個向量模型補撈後到 62.4，商用判官是 58.4</td></tr>
       </tbody>
     </table>
@@ -217,7 +217,7 @@ BODY = f"""
 
   <p>這 19 分後來拆過一次。把上游的迴圈接上同一顆本機判官，跑同樣的六十題，就能分出判官和流程各占多少。換判官掉 12 分，換流程再掉 7 分。<span class="mark">比較大的一塊在判官。</span>同一個專案的文件彼此都相關，本機判官分不出題目指定的是哪幾份。</p>
 
-  <p>同一次補測也帶來一個好消息。問法跟文件用詞不同的題目和最基本的查找題，加上向量模型之後，Taguri 比商用判官高 4 分，統計上至少不輸。</p>
+  <p>向量模型補撈的效果後來在全部 470 題上量過。加了之後，整體和商用判官打平。打平的組成不一樣。最基本的查找題和問法跟文件用詞不同的題目，Taguri 各高 4 分。要把同一件事的文件找齊的題目，仍然低 13 到 31 分，向量模型在這裡沒有幫上忙。</p>
 
   <p class="eyebrow">№ 6 · 中文</p>
   <h2>搬到中文掉了二十一分，其中八分是資料的問題</h2>
@@ -244,7 +244,7 @@ BODY = f"""
     <li><span class="no">d</span><div><strong>很大的資料庫。</strong>一百五十萬段的時候，每題要等幾分鐘，慢在關鍵字那一層。</div></li>
   </ul>
 
-  <p>這四件事裡，前三件不用再花雲端的錢。把它搬到不連外網的機器上，照著接手文件跑一遍就知道了。整個實驗到這裡花了大約三十三美元。</p>
+  <p>這四件事裡，前三件不用再花雲端的錢。把它搬到不連外網的機器上，照著接手文件跑一遍就知道了。整個實驗到這裡花了大約三十五美元。</p>
 
   <p class="byline">程式、每一段的報告與接手文件：github.com/clarencechien/taguri</p>
 
