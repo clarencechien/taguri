@@ -47,6 +47,7 @@ B0 的檔案只涵蓋 dev（MuSiQue 300 題、2Wiki 100 題）；其他方法在
 |---|---|---|
 | `musique/taguri_n1.jsonl` | Taguri 定案設定 N1 | dev 300 題（R@5 80.17）＋ test 700 題（R@5 80.20） |
 | `musique/taguri_n0.jsonl` | 只有詞彙層 | dev 300 題（R@5 47.72） |
+| `musique/taguri_n1_eg2.jsonl` | N1＋EG2 | dev 300 題（R@5 80.94） |
 | `2wikimultihopqa/taguri_n1.jsonl` | N1 | dev 100 題（R@5 100.00） |
 | `multihop-rag/taguri_n1.jsonl` | N1 | sample300（R@10 72.17） |
 
