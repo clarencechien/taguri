@@ -127,7 +127,12 @@ def main():
     cfg = make_config(a.config, lock, tau=a.tau, out_mode=a.out_mode, anchor_bonus=a.anchor_bonus)
     dec = None
     if a.judge == "sglang":
-        dec = LLMDecider(SGLangBackend(a.base_url, a.tokenizer), a.lang)
+        zh = a.lang.startswith("zh")
+        dec = LLMDecider(SGLangBackend(a.base_url, a.tokenizer), a.lang, lock.get("q3_variant_zh" if zh else "q3_variant", "A"), lock.get("layout", "L1"))
+        if zh:  # locked Chinese-only settings
+            for k, v in lock.get("zh", {}).items():
+                if hasattr(cfg, k):
+                    setattr(cfg, k, v)
     elif a.judge == "oracle":
         gold = {}
 
