@@ -253,6 +253,112 @@ class SGLangBackend:
                 os.fsync(self._fh.fileno())
 
 
+class LlamaBackend:
+    """Reads option-letter log-probs from llama-server's native /completion (the default serving path on GB10).
+
+    Differences from SGLangBackend:
+      - the prompt is sent as a string and llama-server prepends <bos> itself, so the template WITHOUT the literal
+        <bos> is used (jevlike decide/prompt.py: GEMMA4_TEMPLATE_NOTHINK);
+      - only the top `n_probs` tokens come back. A letter that is not among them gets `floor` (default: just below the
+        smallest log-prob returned), so very negative log-odds are clipped. Ranking among clear rejects is then decided
+        by the BM25 tie-break, which does not matter for the top of the list;
+      - one request per prompt (no list batching); prefix reuse relies on `cache_prompt` and `--swa-full`.
+    Start the server with:  --jinja --reasoning-budget 0 --swa-full   and NO MTP draft head.
+    """
+
+    def __init__(self, base_url, cache_dir=None, run_id="run", n_probs=40, parallel=4):
+        import requests
+
+        self.base_url, self.n_probs, self.parallel = base_url.rstrip("/"), n_probs, parallel
+        self._requests, self._tls = requests, threading.local()
+        self.cache, self._lock, self._fh = {}, threading.Lock(), None
+        self.tok = None  # no local tokenizer: evidence budgeting falls back to a character estimate
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
+            for fn in sorted(os.listdir(cache_dir)):
+                if fn.endswith(".jsonl"):
+                    for line in open(os.path.join(cache_dir, fn)):
+                        try:
+                            r = json.loads(line); self.cache[r["k"]] = r
+                        except Exception:  # noqa: BLE001
+                            pass
+            self._fh = open(os.path.join(cache_dir, f"{run_id}-{int(time.time())}.jsonl"), "a")
+        self.loaded = len(self.cache)
+        self.debug_dir, self._debug_n = None, 0
+
+    def _sess(self):
+        if not hasattr(self._tls, "s"):
+            self._tls.s = self._requests.Session()
+        return self._tls.s
+
+    def _one(self, prompt, n_opts):
+        import math
+
+        assert prompt.startswith("<bos>")
+        body = {"prompt": prompt[len("<bos>"):], "n_predict": 1, "temperature": 0, "n_probs": self.n_probs, "cache_prompt": True, "samplers": []}
+        for attempt in range(4):
+            try:
+                resp = self._sess().post(f"{self.base_url}/completion", json=body, timeout=900)
+                resp.raise_for_status()
+                break
+            except Exception:  # noqa: BLE001
+                if attempt == 3:
+                    raise
+                time.sleep(2 * (attempt + 1))
+        r = resp.json()
+        cp = r.get("completion_probabilities") or [{}]
+        cand = cp[0].get("top_logprobs") or cp[0].get("top_probs") or cp[0].get("probs") or []
+        found, lowest = {}, 0.0
+        for c in cand:
+            v = c.get("logprob")
+            if v is None:
+                v = math.log(max(c.get("prob", 0.0), 1e-12))
+            lowest = min(lowest, v)
+            t = (c.get("token") or c.get("tok_str") or "").strip()
+            if t in LETTERS[:n_opts]:
+                found[t] = max(found.get(t, -1e9), v)
+        floor = lowest - 1.0
+        lp = [found.get(L, floor) for L in LETTERS[:n_opts]]
+        return {"lp": lp, "ntok": int(r.get("tokens_evaluated") or 0) + int(r.get("tokens_cached") or 0) or len(prompt) // 4,
+                "mass": sum(math.exp(v) for v in found.values()), "cached_tokens": int(r.get("tokens_cached") or 0), "clipped": len(found) < n_opts}
+
+    def ask(self, prompts, n_opts, stats: Stats, warm_first=False):
+        from concurrent.futures import ThreadPoolExecutor
+
+        keys = [hashlib.sha1((p + f"|{n_opts}|llama").encode()).hexdigest() for p in prompts]
+        out = [self.cache.get(k) for k in keys]
+        todo = [i for i, r in enumerate(out) if r is None]
+        if todo:
+            t0 = time.perf_counter()
+            first, rest = (todo[:1], todo[1:]) if warm_first and len(todo) > 1 else ([], todo)
+            for i in first:  # put the shared prefix into the prompt cache before fanning out
+                out[i] = self._one(prompts[i], n_opts)
+            with ThreadPoolExecutor(self.parallel) as ex:
+                for i, r in zip(rest, ex.map(lambda i: self._one(prompts[i], n_opts), rest)):
+                    out[i] = r
+            stats.judge_s += time.perf_counter() - t0
+            for i in todo:
+                rec = dict(out[i], k=keys[i])
+                out[i] = rec
+                stats.fresh += 1
+                stats.fresh_tokens += rec["ntok"]
+                stats.radix_cached += rec.get("cached_tokens", 0)
+                with self._lock:
+                    self.cache[keys[i]] = rec
+                    if self._fh:
+                        self._fh.write(json.dumps(rec) + "\n")
+        for r in out:
+            stats.calls += 1
+            stats.tokens += r["ntok"]
+            stats.min_mass = min(stats.min_mass, r["mass"])
+        return out
+
+    def flush(self):
+        with self._lock:
+            if self._fh:
+                self._fh.flush()
+
+
 class LLMDecider:
     def __init__(self, backend, lang="en", q3="A", layout="L1"):
         self.b, self.p = backend, Prompts(lang, q3, layout)
@@ -263,8 +369,16 @@ class LLMDecider:
     def _fit(self, evidence):
         """Keep the best-ranked evidence passages that fit the token budget (long enterprise chunks can overflow the context)."""
         tok = getattr(self.b, "tok", None)
-        if tok is None or not evidence:
+        if not evidence:
             return evidence
+        if tok is None:  # no tokenizer at hand (llama-server backend): 1 token ~ 2 characters is a safe over-estimate for dense text
+            out, used = [], 0
+            for p in evidence:
+                n = (len(p["title"]) + len(p["text"])) // 2 + 4
+                if used + n > self.EV_TOKEN_BUDGET and out:
+                    break
+                out.append(p); used += n
+            return out
         out, used = [], 0
         for p in evidence:
             n = self._ntok.get(p["rid"])

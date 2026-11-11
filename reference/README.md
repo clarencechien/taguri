@@ -38,3 +38,14 @@ B0 的檔案只涵蓋 dev（MuSiQue 300 題、2Wiki 100 題）；其他方法在
 |---|---|---:|---:|---:|---:|
 | `b0.jsonl` | B0：SAG2 迴圈＋jevlike，兩輪擴展（H2） | 300 | 60.56 | 70.89 | 45.33 |
 | `bm25.jsonl` | 上游 BM25（我們自己跑的） | 300 | 39.92 | 52.42 | 24.33 |
+
+## Taguri 自己的逐題分數（Session B 加的）
+
+雲端（Modal L40S、SGLang、FP8 權重）跑出來的結果，給之後在別的環境重現時做配對比較用。
+
+| 檔案 | 內容 | 涵蓋 |
+|---|---|---|
+| `musique/taguri_n1.jsonl` | Taguri 定案設定 N1 | dev 300 題（R@5 80.17）＋ test 700 題（R@5 80.20） |
+| `musique/taguri_n0.jsonl` | 只有詞彙層 | dev 300 題（R@5 47.72） |
+| `2wikimultihopqa/taguri_n1.jsonl` | N1 | dev 100 題（R@5 100.00） |
+| `multihop-rag/taguri_n1.jsonl` | N1 | sample300（R@10 72.17） |

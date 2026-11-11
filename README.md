@@ -7,6 +7,8 @@
 - 完整的實驗計畫、門檻與逐段結論：[`TAGURI-handoff.md`](TAGURI-handoff.md)（全案總結論在 §11.2）
 - 各段報告：[`results/`](results/)
 - 每一個設計決定與理由：[`docs/design-decisions.md`](docs/design-decisions.md)
+- 在 GB10（不連外網）上接手重現與試用：[`docs/gb10-handoff.md`](docs/gb10-handoff.md)
+- RAG 抽測（接上生成之後答得對不對）：[`results/rag-spotcheck.md`](results/rag-spotcheck.md)
 
 ## 一句話結論
 
@@ -373,6 +375,16 @@ modal volume get taguri-b-results /demo out/     # 取回結果
 modal run --detach modal_taguri.py::main --eg --stage demo \
   --jobs '[{"config":"N1+EG2","dataset":"musique","split":"dev"}]'
 ```
+
+單題查詢（不需要金標；`--judge none` 只用詞彙層）：
+
+```bash
+python tools/ingest_files.py --src /path/to/docs --out store --name mydocs     # 文字檔 → corpus.jsonl ＋ SQLite 索引
+python -m taguri.query --db store/idx/mydocs.db --doc-level --question "……" \
+  --judge llama --base-url http://127.0.0.1:8080
+```
+
+判官也可以用 llama-server（`--judge llama`，GB10 上的預設路徑；這個後端只用模擬伺服器驗過流程，還沒接過真的 llama-server，見 [`docs/gb10-handoff.md`](docs/gb10-handoff.md)）。
 
 已經有自己的 SGLang 伺服器時，可以不經過 Modal：
 

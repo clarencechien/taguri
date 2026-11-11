@@ -16,7 +16,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from .analyze import Analyzer
-from .decide import LLMDecider, OracleDecider, SGLangBackend
+from .decide import LLMDecider, LlamaBackend, OracleDecider, SGLangBackend
 from .index import Index, build
 from .pipeline import CONFIGS, Config, Engine
 
@@ -32,7 +32,7 @@ def make_config(name, lock=None, **over):
     base = name.split("+")[0]
     kw = dict(CONFIGS[base])
     lock = lock or {}
-    for k in ("tau", "anchor_bonus", "out_mode", "beta", "chunk", "rejudge_each", "pick_none", "min_pool", "term_rank", "n_cand", "rounds_n1", "zh_cands"):
+    for k in ("tau", "anchor_bonus", "out_mode", "beta", "chunk", "rejudge_each", "pick_none", "min_pool", "term_rank", "n_cand", "rounds_n1", "zh_cands", "rounds", "K"):
         if k in lock:
             kw[k] = lock[k]
     if "+EG2" in name:
@@ -102,7 +102,11 @@ def main():
     ap.add_argument("--dataset", default="musique")
     ap.add_argument("--split", default="dev")
     ap.add_argument("--lang", default="en")
-    ap.add_argument("--judge", default="none", choices=["none", "sglang", "oracle"])
+    ap.add_argument("--judge", default="none", choices=["none", "sglang", "llama", "oracle"])
+    ap.add_argument("--limit", type=int, help="only the first N questions of the split")
+    ap.add_argument("--cache-dir", help="persist judge results here (reruns then cost nothing)")
+    ap.add_argument("--doc-level", action="store_true", help="de-duplicate and score by document (corpus rows need a 'doc' field)")
+    ap.add_argument("--llama-parallel", type=int, default=4, help="concurrent requests per judge call (llama-server -np)")
     ap.add_argument("--base-url", default="http://127.0.0.1:30000")
     ap.add_argument("--tokenizer")
     ap.add_argument("--data-dir", default=os.path.join(ROOT, "data"))
@@ -114,21 +118,26 @@ def main():
     ap.add_argument("--anchor-bonus", type=float)
     ap.add_argument("--weights", help='json, e.g. {"title": 2}')
     ap.add_argument("--no-lock", action="store_true")
+    ap.add_argument("--lock", help="use this lock file instead of results/thresholds.lock.json (e.g. a reduced-cost copy)")
     a = ap.parse_args()
 
     from evalkit import aggregate, load_questions, load_split, score_run
 
-    lock = {} if a.no_lock else load_lock()
+    lock = {} if a.no_lock else load_lock(a.lock)
     weights = json.loads(a.weights) if a.weights else lock.get("weights")
     an = Analyzer(zh_key=lock.get("zh_key", "tw2sp"))
-    ix = get_index(a.dataset, a.data_dir, a.idx_dir, an, weights)
+    ix = get_index(a.dataset, a.data_dir, a.idx_dir, an, weights, doc_field="doc" if a.doc_level else None)
     questions = load_questions(a.dataset, a.data_dir) if a.data_dir else load_questions(a.dataset)
     qids = load_split(a.dataset, a.split, a.data_dir)
+    if a.limit:
+        qids = qids[: a.limit]
     cfg = make_config(a.config, lock, tau=a.tau, out_mode=a.out_mode, anchor_bonus=a.anchor_bonus)
     dec = None
-    if a.judge == "sglang":
+    if a.judge in ("sglang", "llama"):
         zh = a.lang.startswith("zh")
-        dec = LLMDecider(SGLangBackend(a.base_url, a.tokenizer), a.lang, lock.get("q3_variant_zh" if zh else "q3_variant", "A"), lock.get("layout", "L1"))
+        backend = (SGLangBackend(a.base_url, a.tokenizer, cache_dir=a.cache_dir) if a.judge == "sglang"
+                   else LlamaBackend(a.base_url, cache_dir=a.cache_dir, parallel=a.llama_parallel))
+        dec = LLMDecider(backend, a.lang, lock.get("q3_variant_zh" if zh else "q3_variant", "A"), lock.get("layout", "L1"))
         if zh:  # locked Chinese-only settings
             for k, v in lock.get("zh", {}).items():
                 if hasattr(cfg, k):
@@ -149,12 +158,16 @@ def main():
             return [sum((t.lower() in (p["title"] + " " + p["text"]).lower()) for p in miss) for t in terms]
 
         dec = OracleDecider(gold_rids, pick_hook)
-    eng = Engine(ix, dec)
+    eng = Engine(ix, dec, doc_level=a.doc_level)
     out = a.out or f"/tmp/taguri-out/{a.dataset}-{a.split}-{a.config}-{a.judge}"
-    summ = run_split(eng, cfg, questions, qids, out, workers=a.workers if a.judge == "sglang" else 4)
+    summ = run_split(eng, cfg, questions, qids, out, workers=a.workers if a.judge in ("sglang", "llama") else 4)
     run = {json.loads(l)["qid"]: json.loads(l)["retrieved"] for l in open(os.path.join(out, "run.jsonl"))}
     agg = aggregate(score_run(questions, run, qids))
-    print(json.dumps({"out": out, "calls_median": summ["calls_median"], **{k: round(v, 2) for k, v in agg.items()}}))
+    lat = sorted(json.loads(l)["wall_s"] for l in gzip.open(os.path.join(out, "trace.jsonl.gz"), "rt"))
+    print(json.dumps({"out": out, "calls_median": summ["calls_median"], "workers": a.workers, "run_wall_s": summ["wall_s"],
+                      "per_question_s": {"median": lat[len(lat) // 2], "p90": lat[int(0.9 * (len(lat) - 1))], "max": lat[-1]},
+                      "min_option_mass": summ["min_option_mass"], "failed_questions": summ.get("failed_questions", 0),
+                      **{k: round(v, 2) for k, v in agg.items()}}))
 
 
 if __name__ == "__main__":
