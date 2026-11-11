@@ -24,6 +24,7 @@
 | 2026-11-10 | Hugging Face：`onyx-dot-app/EnterpriseRAG-Bench` @ `69916e3` 的 README（資料集卡）、`data/questions/test.parquet`、`data/documents/test.parquet`（後兩者在 Modal 容器內下載） | S10 | 題組官方說明，§2.4 允許。只讀了資料集卡的欄位說明和題型表；沒有開排行榜、論文和 GitHub repo |
 | 2026-11-11 | `clarencechien/imitator` @ `f9d9b9f`（`README.md`、`CLAUDE.md`、`style/STYLE.md`、`style/report.css`、`style/mockup.html`） | 照它的版面規範寫 `docs/report/taguri.html` | Clarence 指定。唯讀 clone，CSS 骨架貼進報告裡 |
 | 2026-11-11 | `clarencechien/twtonepoc` @ `940bab2`（`twtone` 檢查工具，會下載它用的 zhtw-mcp 執行檔） | 檢查給人看的文件的繁中語感 | Clarence 指定。只在本機跑，不呼叫模型 |
+| 2026-11-11 | Session A 的補充說明 `handoff/A-to-B-attribution.md`（Clarence 上傳） | 把歸因補測的數字寫進報告 | 只有分數和結論，沒有上游的提示詞、公式、參數或程式。沒有為了解讀去查上游的做法 |
 
 全程沒有用網路搜尋。
 
