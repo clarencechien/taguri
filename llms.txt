@@ -10,7 +10,7 @@
 - [README.md](README.md)：架構、查詢流程、和其他做法的比較、成本、怎麼用
 - [TODO.md](TODO.md)：還沒做、還沒驗證的事，每一項有「做完怎麼算數」
 - [docs/gb10-handoff.md](docs/gb10-handoff.md)：在 GB10（不連外網）上重現與試用的步驟和門檻
-- [docs/design-decisions.md](docs/design-decisions.md)：每一個設計決定與理由；第 12、13、14 節會覆蓋前面幾節
+- [docs/design-decisions.md](docs/design-decisions.md)：每一個設計決定與理由。第 12、13、14 節會覆蓋前面幾節
 - [TAGURI-handoff.md](TAGURI-handoff.md)：原始的實驗計畫與全案總結論（§11.2）
 - [results/](results/)：各階段的報告。數字以這裡為準，不要憑記憶引用
 
@@ -25,7 +25,7 @@
 - [taguri/dense.py](taguri/dense.py)、[taguri/dense_server.py](taguri/dense_server.py)：選配的 EG2 補充召回
 - [evalkit/](evalkit/)：R@k、AE@k、配對 bootstrap
 - [tools/ingest_files.py](tools/ingest_files.py)：文字檔 → corpus.jsonl ＋ SQLite 索引
-- [modal_taguri.py](modal_taguri.py)：雲端（Modal）入口；只有重跑雲端實驗時才需要
+- [modal_taguri.py](modal_taguri.py)：雲端（Modal）入口。只有重跑雲端實驗時才需要
 - [results/thresholds.lock.json](results/thresholds.lock.json)：所有調過的參數
 
 ## 馬上能跑的檢查（只用 CPU，不需要模型）
@@ -63,16 +63,16 @@ python -m taguri.run --config N0 --dataset musique --split dev
 5. **EG2 只能當補充召回。** 它的分數不能進排序、不能取代判官。不要引入其他 embedding 模型、向量 reranker 或向量資料庫。
 6. **判斷用的伺服器不開 MTP 草稿頭**，也不要把生成請求和讀機率的請求送進同一個 SGLang 批次（排程器會當掉）。
 7. **真實的公司資料不進 git、不上雲端。** repo 裡只有公開題組。
-8. **clean-room**：這個實作沒有參考上游 SAG2 的程式碼、論文或文件。繼續開發時不要去讀 `Zleap-AI/*` 的 repo、PyPI 的 `zleap-sag`／`zleap-sag2`、SAG／SAG2 的論文，也不要搜尋它的做法；規則和紀錄在 [docs/clean-room-log.md](docs/clean-room-log.md)。如果任務需要打破這一條，先問人。
+8. **clean-room**：這個實作沒有參考上游 SAG2 的程式碼、論文或文件。繼續開發時不要去讀 `Zleap-AI/*` 的 repo、PyPI 的 `zleap-sag`／`zleap-sag2`、SAG／SAG2 的論文，也不要搜尋它的做法。規則和紀錄在 [docs/clean-room-log.md](docs/clean-room-log.md)。如果任務需要打破這一條，先問人。
 9. **先寫門檻再跑實驗，沒過的照實寫。** 每個比較都在同一批題號上逐題配對，附 95% 信賴區間。不要只報告好看的那一組。
 
 ## 開發時容易踩到的事
 
 - **要重判。** 最初的規格是「判過的段落不重判」，結果比基線低 11.88 分。現在每輪重判前 20 名。把重判關掉或設成 0 會直接掉 10 分。
-- **證據池不能是空的。** `min_pool` = 2 讓排名最前面的兩段當暫定證據；拿掉的話第一跳被判否的題目整題沒有東西可以接。
+- **證據池不能是空的。** `min_pool` = 2 讓排名最前面的兩段當暫定證據。拿掉的話第一跳被判否的題目整題沒有東西可以接。
 - **長段落會超過 context。** 已有證據會截到 10,000 token（`EV_TOKEN_BUDGET`）。llama-server 路徑沒有 tokenizer，用字元數估計。
 - **中文和英文的橋接詞候選不同。** 中文用專有名詞（`zh_cands`），因為「依 IDF 取前幾個」在中文會選到斷詞碎片。這組設定只在 `lang` 是中文時套用（lock 檔的 `zh` 區塊）。
-- **本機路徑和 Modal 路徑是兩套入口。** `taguri/run.py`、`taguri/query.py` 是本機用的；`modal_taguri.py` 有自己套用 lock 的邏輯。改了參數的套用方式要兩邊都改。
+- **本機路徑和 Modal 路徑是兩套入口。** `taguri/run.py`、`taguri/query.py` 是本機用的。`modal_taguri.py` 有自己套用 lock 的邏輯。改了參數的套用方式要兩邊都改。
 - **判斷結果快取會掩蓋延遲。** 給了 `--cache-dir` 之後重跑同樣的題目是 0 秒。量延遲時不要給。
 - **大語料慢在 SQLite，不在模型。** 154 萬段時每題的詞彙檢索要幾分鐘。優化前先用 `trace.jsonl.gz` 裡每題的 `wall_s` 和 `stats.judge_s` 確認時間花在哪。
 - **選橋接詞那一題有 11% 到 15% 的判斷 option mass 低於 0.5。** 這是已知問題，加「都不適合」選項試過，反而掉分。
@@ -83,7 +83,7 @@ python -m taguri.run --config N0 --dataset musique --split dev
 
 1. GB10 上的單題延遲實測（TODO A3）。這會決定能不能互動使用。
 2. 服務介面：現在只有命令列。要包成長駐的服務（索引常駐、連線重用、逾時與重試、並行控制）。
-3. 文件匯入：PDF、Word、Excel 的解析；索引的增量更新（TODO B5、B6）。
+3. 文件匯入：PDF、Word、Excel 的解析。索引的增量更新（TODO B5、B6）。
 4. 大語料的詞彙檢索引擎（TODO B1）。
 5. 接生成並做端到端評測，評分者要獨立於生成的模型（TODO C1）。
 6. 權限與稽核：現在完全沒有。檢索結果沒有依使用者過濾。
