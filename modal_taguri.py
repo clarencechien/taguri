@@ -382,6 +382,39 @@ def translate_q():
     return info
 
 
+@app.function(image=image, gpu=GPU, cpu=16, memory=32768, volumes={"/hf": weights, "/results": results}, timeout=60 * 60 * 2)
+def rag_eval():
+    """End-to-end spot check on EnterpriseRAG (tools/rag_eval.py): answers from retrieved documents, graded per fact."""
+    import shutil
+    import sys
+
+    sys.path.insert(0, "/root")
+    from taguri.analyze import Analyzer
+    from taguri.index import Index
+    from tools.rag_eval import main as rag
+
+    t0 = time.time()
+    lock = json.load(open("/root/results/thresholds.lock.json"))
+    shutil.copy("/results/idx/enterprise-tw2sp.db", "/tmp/enterprise.db")
+    ix = Index("/tmp/enterprise.db", Analyzer(zh_key=lock.get("zh_key", "tw2sp")), lock.get("weights"))
+    proc, t_start = start_server()
+    try:
+        summ = rag("http://127.0.0.1:30000", f"/hf/{MODEL_REPO}/tokenizer.json", ix, "/results/data/enterprise/rag100.jsonl",
+                   {"N1": "/results/s10/enterprise-N1", "N1+EG2": "/results/s10/enterprise-N1+EG2"}, "/results/rag", commit=results.commit)
+    finally:
+        proc.terminate()
+    summ["container_s"] = round(time.time() - t0, 1)
+    summ["est_usd"] = round(summ["container_s"] * GPU_USD_PER_H / 3600, 3)
+    json.dump(summ, open("/results/rag/summary.json", "w"), indent=1)
+    results.commit()
+    return summ
+
+
+@app.local_entrypoint()
+def rag():
+    print(json.dumps(rag_eval.remote(), indent=1, ensure_ascii=False))
+
+
 @app.local_entrypoint()
 def trq():
     print(json.dumps(translate_q.remote(), indent=1, ensure_ascii=False))
