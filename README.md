@@ -7,6 +7,7 @@
 - 完整的實驗計畫、門檻與逐段結論：[`TAGURI-handoff.md`](TAGURI-handoff.md)（全案總結論在 §11.2）
 - 各段報告：[`results/`](results/)
 - 每一個設計決定與理由：[`docs/design-decisions.md`](docs/design-decisions.md)
+- 還沒做、還沒驗證的事：[`TODO.md`](TODO.md)
 - 在 GB10（不連外網）上接手重現與試用：[`docs/gb10-handoff.md`](docs/gb10-handoff.md)
 - RAG 抽測（接上生成之後答得對不對）：[`results/rag-spotcheck.md`](results/rag-spotcheck.md)
 
