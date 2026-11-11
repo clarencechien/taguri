@@ -495,6 +495,19 @@ button, summary { transition: transform var(--dur-fast) var(--ease-out); }
 .entries > li > div { min-width: 0; }
 .entries > li > div > strong { font-family: var(--disp); }
 figure { margin-inline: 0; }
+/* 線描的流程圖：細線、編號、不上色。判官負責的兩步用標題那個深褐描邊。 */
+.diagram svg { display: block; width: 100%; max-width: 27rem; height: auto; margin-inline: auto; overflow: visible; }
+.diagram text { font-family: var(--sans); font-size: 13px; fill: var(--ink); }
+.diagram .sm { font-size: 11px; fill: var(--mist); }
+.diagram .grp { font-size: 11px; fill: var(--ink-2); font-weight: 700; letter-spacing: .04em; }
+.diagram .no { font-family: var(--mono); font-size: 12px; fill: var(--accent); }
+.diagram .role { font-size: 11px; fill: var(--mist); }
+.diagram .node { fill: var(--card); stroke: var(--rule-hard); stroke-width: 1.2; }
+.diagram .judge .node { stroke: var(--accent); stroke-width: 1.8; }
+.diagram .judge .role { fill: var(--accent); font-weight: 700; }
+.diagram .group { fill: none; stroke: var(--rule-hard); stroke-width: 1; stroke-dasharray: 4 4; }
+.diagram .wire { fill: none; stroke: var(--ink-2); stroke-width: 1.2; }
+.diagram .head { fill: var(--ink-2); }
 
 </style>
 <body>
@@ -537,6 +550,63 @@ figure { margin-inline: 0; }
   </ul>
 
   <p>整件事不呼叫任何外部服務。索引是一個 SQLite 檔案，判官是一顆開源的 Gemma 4。建索引的時候完全不用模型。</p>
+
+  <figure class="diagram reveal">
+    <p class="title">Taguri 做到哪裡</p>
+    <p class="subtitle">編號對應上面五個步驟。框線加粗的兩步由判官回答選擇題，其餘由程式做。</p>
+<svg viewBox="0 0 360 590" role="img" aria-label="流程圖：使用者的問題進到 Taguri。Taguri 先用關鍵字取出 50 段，判官逐段判有沒有用，判官挑下一個線索，用新線索再找一次並回到逐段判，共兩輪，最後交出最相關的 10 段。之後要做成產品，還要補上讓模型讀這 10 段寫出答案，以及畫面、權限、文件上傳和監控。">
+<g><rect class="node" x="44" y="8" width="290" height="56" rx="6"/>
+<text x="58" y="30">使用者的問題</text>
+<text class="sm" x="58" y="49">例：這個警報上次換的零件，供應商是誰？</text>
+</g>
+<line class="wire" x1="189" y1="64" x2="189" y2="118"/><polygon class="head" points="185,117 193,117 189,124"/>
+<rect class="group" x="10" y="94" width="340" height="330" rx="10"/>
+<rect x="22" y="86" width="158" height="16" fill="var(--paper)"/><text class="grp" x="28" y="98">Taguri（這個 repo 做到的）</text>
+<g><rect class="node" x="44" y="124" width="290" height="40" rx="6"/>
+<text class="no" x="56" y="148.5">1</text>
+<text x="78" y="148.5">用關鍵字取出 50 段</text>
+<text class="role" x="324" y="148.5" text-anchor="end">程式</text>
+</g>
+<line class="wire" x1="189" y1="164" x2="189" y2="174"/><polygon class="head" points="185,173 193,173 189,180"/>
+<g class="judge"><rect class="node" x="44" y="180" width="290" height="40" rx="6"/>
+<text class="no" x="56" y="204.5">2</text>
+<text x="78" y="204.5">逐段判：這段有沒有用？</text>
+<text class="role" x="324" y="204.5" text-anchor="end">判官</text>
+</g>
+<line class="wire" x1="189" y1="220" x2="189" y2="230"/><polygon class="head" points="185,229 193,229 189,236"/>
+<g class="judge"><rect class="node" x="44" y="236" width="290" height="56" rx="6"/>
+<text class="no" x="56" y="258">3</text>
+<text x="78" y="258">從有用的段落挑下一個線索</text>
+<text class="sm" x="78" y="277">例：零件編號 FDR-220</text>
+<text class="role" x="324" y="258" text-anchor="end">判官</text>
+</g>
+<line class="wire" x1="189" y1="292" x2="189" y2="302"/><polygon class="head" points="185,301 193,301 189,308"/>
+<g><rect class="node" x="44" y="308" width="290" height="40" rx="6"/>
+<text class="no" x="56" y="332.5">4</text>
+<text x="78" y="332.5">用新線索再找一次</text>
+<text class="role" x="324" y="332.5" text-anchor="end">程式</text>
+</g>
+<line class="wire" x1="189" y1="348" x2="189" y2="358"/><polygon class="head" points="185,357 193,357 189,364"/>
+<g><rect class="node" x="44" y="364" width="290" height="40" rx="6"/>
+<text class="no" x="56" y="388.5">5</text>
+<text x="78" y="388.5">交出最相關的 10 段，附把握程度</text>
+<text class="role" x="324" y="388.5" text-anchor="end">程式</text>
+</g>
+<path class="wire" d="M44 328 H27 V200 H37"/><polygon class="head" points="37,196 37,204 44,200"/>
+<text class="sm" x="21" y="264" text-anchor="middle" transform="rotate(-90 21 264)">回到 2，共兩輪</text>
+<line class="wire" x1="189" y1="404" x2="189" y2="470"/><polygon class="head" points="185,469 193,469 189,476"/>
+<rect class="group" x="10" y="446" width="340" height="136" rx="10"/>
+<rect x="22" y="438" width="106" height="16" fill="var(--paper)"/><text class="grp" x="28" y="450">做成產品還要補的</text>
+<g><rect class="node" x="44" y="476" width="290" height="40" rx="6"/>
+<text x="58" y="500.5">模型讀這 10 段，寫出答案</text>
+</g>
+<line class="wire" x1="189" y1="516" x2="189" y2="524"/><polygon class="head" points="185,523 193,523 189,530"/>
+<g><rect class="node" x="44" y="530" width="290" height="40" rx="6"/>
+<text x="58" y="554.5">畫面、權限、文件上傳、監控</text>
+</g>
+</svg>
+    <figcaption>上面的框是這次做出來的東西，它交出的是十段最可能有答案的內容。下面的框是要變成產品還得補上的，這次沒有做。</figcaption>
+  </figure>
 
   <p class="eyebrow">№ 3 · 失手</p>
   <h2>省掉的那一步，剛好是最需要的</h2>
