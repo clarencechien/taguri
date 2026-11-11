@@ -232,7 +232,43 @@ BODY = f"""
 
   <p>順手測了一件事。中文問題直接查英文資料庫，不加向量模型時前五段只撈到 16.6，加上之後是 65.4，跟先把文件翻成中文再查一樣好。第一輪靠向量模型找到入口，之後的線索是從英文證據裡抽出來的英文詞，後面幾輪就回到英文查英文。</p>
 
-  <p class="eyebrow">№ 7 · 還沒收完的線</p>
+  <p class="eyebrow">№ 7 · 補撈</p>
+  <h2>什麼時候要多帶一個向量模型</h2>
+
+  <p>一開始的設計是完全不用向量，只靠關鍵字和判官。做到後來，結論變成看資料。<span class="mark">問題和文件的用詞常常對不上的時候要帶，對得上的時候不用。</span></p>
+
+  <ul class="entries">
+    <li><span class="no">不用</span><div><strong>問題會直接講出名字。</strong>人名、作品名、產品名、編號都算。維基百科那類多跳題加了只多半分，在雜訊裡。</div></li>
+    <li><span class="no">要</span><div><strong>企業文件和會議記錄。</strong>問的人和寫的人用詞不同。五十一萬份文件上，不加時比商用判官低 6.6 分，加了打平。</div></li>
+    <li><span class="no">要</span><div><strong>一個問題問兩件事。</strong>各在一份文件裡，關鍵字常常只撈到前半段那一份。加了之後這類題目從 85 分到 97 分。</div></li>
+    <li><span class="no">一定要</span><div><strong>中文問、英文文件。</strong>不加幾乎找不到，前五段只有 16.6。加了是 65.4。</div></li>
+    <li><span class="no">沒用</span><div><strong>要把同一件事的文件找齊。</strong>加了之後帶進來的反而是更多看起來相關的干擾。</div></li>
+  </ul>
+
+  <p>代價不大。向量只要建一次，五十一萬份文件在一張 GPU 上花了 132 分鐘、4.3 美元，存下來是一個 2.4 GB 的檔案。查詢時每題多一成七的判斷次數。它不需要向量資料庫，也不參與排序。它只負責多撈幾段進來，誰是證據仍然由判官決定。</p>
+
+  <p class="eyebrow">№ 8 · 帳面</p>
+  <h2>最後的成績</h2>
+
+  <div class="table-scroll wide">
+    <table>
+      <thead><tr><th>題組</th><th class="num">只用關鍵字</th><th class="num">上游迴圈＋商用判官</th><th class="num">Taguri</th><th class="num">加向量補撈</th></tr></thead>
+      <tbody>
+        <tr><td>英文多跳<span class="sub">MuSiQue · 沒碰過的 700 題 · 前 5 段</span></td><td class="num">48.9</td><td class="num">81.0</td><td class="num">80.2</td><td class="num">沒跑</td></tr>
+        <tr><td>新聞<span class="sub">MultiHop-RAG · 300 題 · 前 10 段</span></td><td class="num">52.4</td><td class="num">沒有紀錄</td><td class="num">72.2</td><td class="num">沒跑</td></tr>
+        <tr><td>企業文件<span class="sub">EnterpriseRAG · 470 題 · 前 10 份</span></td><td class="num">67.8</td><td class="num">81.1</td><td class="num">74.5</td><td class="num">80.7</td></tr>
+        <tr><td>其中要找齊多份文件的<span class="sub">60 題</span></td><td class="num">58.8</td><td class="num">81.1</td><td class="num">61.9</td><td class="num">62.3</td></tr>
+        <tr><td>繁體中文<span class="sub">機器翻譯 · 100 題 · 前 5 段</span></td><td class="num">38.4</td><td class="num">沒有</td><td class="num">66.3</td><td class="num">66.4</td></tr>
+        <tr><td>中文問、英文文件<span class="sub">100 題 · 前 5 段</span></td><td class="num"></td><td class="num"></td><td class="num">16.6</td><td class="num">65.4</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>兩個打平的地方，差距都在統計的雜訊裡。英文多跳差 0.8 分，企業文件加了向量之後差 0.4 分。花的力氣不一樣。英文多跳每題 143 次判斷，上游迴圈配同一顆判官要 334 次。企業文件上讀進去的字是它的三成。</p>
+
+  <p>另外量過能不能再省。把每輪回頭重看的段數減半、證據留五段，判斷次數少一成，讀的字少一成七，分數不變。再往下省就得拿分數換，砍掉一輪會讓「全部找齊」的題目少掉三到七個百分點。</p>
+
+  <p class="eyebrow">№ 9 · 還沒收完的線</p>
   <h2>這是一件資產，還稱不上產品</h2>
 
   <p>現在有的是一個能重複使用的檢索元件，加上證明它有效的紀錄。它沒有畫面，沒有權限控管，不會自己寫答案。下面四件事還不知道。</p>
@@ -244,7 +280,17 @@ BODY = f"""
     <li><span class="no">d</span><div><strong>更大的資料庫。</strong>一百五十萬段的時候，關鍵字那一層原本每題要四十幾秒，查到原因之後降到四秒左右，找出來的東西一樣。再大十倍會怎樣，沒有試過。</div></li>
   </ul>
 
-  <p>這四件事裡，前三件不用再花雲端的錢。把它搬到不連外網的機器上，照著接手文件跑一遍就知道了。整個實驗到這裡花了大約三十九美元。</p>
+  <p>這四件事裡，前三件不用再花雲端的錢。把它搬到不連外網的機器上，照著接手文件跑一遍就知道了。</p>
+
+  <p>知道之後，還有三件事可以做。</p>
+
+  <ul class="entries">
+    <li><span class="no">e</span><div><strong>把同一件事的文件找齊。</strong>這是現在唯一明顯輸的地方。要另外做一條依專案展開的路線，而且要先準備一批沒看過的題目來調。</div></li>
+    <li><span class="no">f</span><div><strong>換一顆判官。</strong>中文掉的分數和找齊文件掉的分數，大半都在判官。往上換更強的可以補分數，往下讓小模型先判可以省成本。兩個都還沒試。</div></li>
+    <li><span class="no">g</span><div><strong>回答的品質。</strong>現在只量了找得到找不到。接上回答之後對不對，只做過一次模型自己評分的抽測，要有獨立的評分者。</div></li>
+  </ul>
+
+  <p>整個實驗到這裡花了大約三十九美元。</p>
 
   <p class="byline">程式、每一段的報告與接手文件：github.com/clarencechien/taguri</p>
 
