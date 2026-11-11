@@ -91,7 +91,18 @@
 
 ## D. 整理
 
-- [ ] **D1. 刪掉已合併的遠端分支**：`claude/session-b`、`claude/readme-mermaid`、`claude/rag-spotcheck`、`claude/gb10-handoff`、`claude/todo-and-trials`、`claude/imitator-report`（雲端環境刪不掉，要在 GitHub 上按）。
+- [ ] **D1. 刪掉已合併的遠端分支**（雲端環境刪不掉，要在 GitHub 上按）。2026-11-11 用 `git branch -r` 列出來的有 11 個，都已經合併進 `main`：
+  - `claude/session-b`
+  - `claude/readme-mermaid`
+  - `claude/rag-spotcheck`
+  - `claude/gb10-handoff`
+  - `claude/todo-and-trials`
+  - `claude/imitator-report`
+  - `claude/attribution-update`
+  - `claude/todo-e123`
+  - `claude/b1-b4-b7`
+  - `claude/gb10-doc-refresh`
+  - `claude/todo-branches`（改這一項用的分支）
 - [ ] **D2. 上游系統的名稱**：交接文件和 `reference/` 的檔名裡還有指上游系統的「SAG2」。要隱去的話先決定代稱。
 - [ ] **D3. Modal Volume `taguri-b-results`**：裡面有各段的逐題紀錄和判斷快取，也有翻譯後的語料，以及 EnterpriseRAG 的索引與 EG2 向量（共十幾 GB）。確定不再重跑之後可以刪。
 
