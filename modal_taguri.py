@@ -142,7 +142,7 @@ def _run(stage: str, jobs: str, run_id: str = ""):
             data_root = j.get("data_root", "/root/data")
             zh_key = j.get("zh_key", lock.get("zh_key", "tw2sp"))
             an = analyzers.setdefault(zh_key, Analyzer(zh_key=zh_key))
-            ikey = (data_root, ds, zh_key)
+            ikey = (data_root, ds, zh_key, int(j.get("lex_procs", 0)))
             if ikey not in indexes:
                 idx_dir = "/tmp/idx" + data_root.replace("/", "_")
                 pre = f"/results/idx/{ds}-{zh_key}.db"
@@ -152,7 +152,7 @@ def _run(stage: str, jobs: str, run_id: str = ""):
                     os.makedirs(idx_dir, exist_ok=True)
                     if not os.path.exists(f"{idx_dir}/{ds}-{zh_key}.db"):
                         shutil.copy(pre, f"{idx_dir}/{ds}-{zh_key}.db")
-                indexes[ikey] = get_index(ds, data_root, idx_dir, an, lock.get("weights"), tag=f"-{zh_key}", doc_field=j.get("doc_field"))
+                indexes[ikey] = get_index(ds, data_root, idx_dir, an, lock.get("weights"), tag=f"-{zh_key}", doc_field=j.get("doc_field"), procs=int(j.get("lex_procs", 0)))
             ix = indexes[ikey]
             if j.get("debug_lowmass") and backend:
                 backend.debug_dir = f"{out_root}/{j['tag']}"
@@ -333,6 +333,36 @@ def prep_enterprise():
     json.dump(info, open("/results/idx/enterprise-tw2sp.db.json", "w"), indent=1)
     results.commit()
     return info
+
+
+@app.function(image=cpu_image, cpu=16, memory=32768, volumes={"/results": results}, timeout=60 * 60)
+def lexprof(n: int = 64, threads: str = "1,16"):
+    """B1 (CPU only, no judge): time the lexical layer on the EnterpriseRAG index by replaying the saved N1 trace."""
+    import shutil
+
+    t0 = time.time()
+    db = "/tmp/enterprise.db"
+    shutil.copy("/results/idx/enterprise-tw2sp.db", db)
+    out = {"copy_s": round(time.time() - t0, 1), "cpus": os.cpu_count()}
+    import hashlib
+
+    for spec in threads.split(","):  # "16" = 16 threads; "16x16" = 16 threads with 16 search worker processes
+        th, _, pr = spec.partition("x")
+        dst = f"/tmp/out_{spec}.jsonl"
+        r = subprocess.run(["python3", "/root/tools/lexical_profile.py", "--db", db, "--data-root", "/results/data", "--trace", "/results/s10/enterprise-N1/trace.jsonl.gz",
+                            "--n", str(n), "--every", "7", "--doc-level", "--threads", th, "--procs", pr or "0", "--out", dst], capture_output=True, text=True)
+        out[spec] = [l for l in r.stdout.splitlines() if "questions," in l or l.startswith("| `")] or r.stderr[-800:]
+        if os.path.exists(dst):
+            out[spec].append("output sha1 " + hashlib.sha1(open(dst, "rb").read()).hexdigest())
+    import sqlite3
+
+    out["sqlite"] = sqlite3.sqlite_version
+    return out
+
+
+@app.local_entrypoint()
+def lex(n: int = 64, threads: str = "1,16"):
+    print(json.dumps(lexprof.remote(n, threads), indent=1, ensure_ascii=False))
 
 
 @app.local_entrypoint()

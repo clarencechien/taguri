@@ -4,6 +4,7 @@
       --tokenizer /hf/.../tokenizer.json --out out/musique-dev-N1
   python -m taguri.run --config N0 --dataset musique --split dev            # CPU only
   python -m taguri.run --config N1 --dataset musique --split calib --judge oracle   # CPU-only pipeline bound
+  python -m taguri.run --config N1+EG2 ... --dense-vectors idx/musique.eg2.npy --eg2-model /models/embeddinggemma-2
 """
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ def make_config(name, lock=None, **over):
     base = name.split("+")[0]
     kw = dict(CONFIGS[base])
     lock = lock or {}
-    for k in ("tau", "anchor_bonus", "out_mode", "beta", "chunk", "rejudge_each", "pick_none", "min_pool", "term_rank", "n_cand", "rounds_n1", "zh_cands", "rounds", "K"):
+    for k in ("tau", "anchor_bonus", "out_mode", "beta", "chunk", "rejudge_each", "pick_none", "min_pool", "term_rank", "n_cand", "rounds_n1", "zh_cands", "rounds", "K", "m"):
         if k in lock:
             kw[k] = lock[k]
     if "+EG2" in name:
@@ -41,14 +42,14 @@ def make_config(name, lock=None, **over):
     return Config(name=name, **kw)
 
 
-def get_index(dataset, data_dir, idx_dir, analyzer, weights=None, doc_field=None, tag="", log=print, workers=1):
+def get_index(dataset, data_dir, idx_dir, analyzer, weights=None, doc_field=None, tag="", log=print, workers=1, procs=0):
     os.makedirs(idx_dir, exist_ok=True)
     db = os.path.join(idx_dir, f"{dataset}{tag}.db")
     if not os.path.exists(db):
         info = build(os.path.join(data_dir, dataset, "corpus.jsonl"), db, analyzer, doc_field=doc_field, log=log, workers=workers)
         log(f"built index {db}: {info}")
         json.dump(info, open(db + ".json", "w"))
-    return Index(db, analyzer, weights)
+    return Index(db, analyzer, weights, procs=procs)
 
 
 def run_split(engine, cfg, questions, qids, out_dir, workers=16, log=print, flush=None):
@@ -119,6 +120,11 @@ def main():
     ap.add_argument("--weights", help='json, e.g. {"title": 2}')
     ap.add_argument("--no-lock", action="store_true")
     ap.add_argument("--lock", help="use this lock file instead of results/thresholds.lock.json (e.g. a reduced-cost copy)")
+    ap.add_argument("--lex-procs", type=int, default=0, help="run the scoring queries in N worker processes (large indexes, many --workers)")
+    ap.add_argument("--dense-vectors", help="EG2 vectors of this index (.npy from `python -m taguri.dense build`); needed for a +EG2 config")
+    ap.add_argument("--eg2-model", help="local EG2 model directory (default: the pinned Hugging Face revision)")
+    ap.add_argument("--eg2-device", default="cpu", help="cpu | cuda (where the query is encoded and the vectors are held)")
+    ap.add_argument("--eg2-url", help="use a running taguri/dense_server.py instead of loading EG2 in this process")
     a = ap.parse_args()
 
     from evalkit import aggregate, load_questions, load_split, score_run
@@ -126,7 +132,7 @@ def main():
     lock = {} if a.no_lock else load_lock(a.lock)
     weights = json.loads(a.weights) if a.weights else lock.get("weights")
     an = Analyzer(zh_key=lock.get("zh_key", "tw2sp"))
-    ix = get_index(a.dataset, a.data_dir, a.idx_dir, an, weights, doc_field="doc" if a.doc_level else None)
+    ix = get_index(a.dataset, a.data_dir, a.idx_dir, an, weights, doc_field="doc" if a.doc_level else None, procs=a.lex_procs)
     questions = load_questions(a.dataset, a.data_dir) if a.data_dir else load_questions(a.dataset)
     qids = load_split(a.dataset, a.split, a.data_dir)
     if a.limit:
@@ -158,7 +164,14 @@ def main():
             return [sum((t.lower() in (p["title"] + " " + p["text"]).lower()) for p in miss) for t in terms]
 
         dec = OracleDecider(gold_rids, pick_hook)
-    eng = Engine(ix, dec, doc_level=a.doc_level)
+    dense = None
+    if cfg.dense:
+        if not a.dense_vectors:
+            ap.error(f"--config {a.config} needs --dense-vectors (build them with: python -m taguri.dense build --db <index.db> --out <file.npy>)")
+        from .dense import open_dense
+
+        dense = open_dense(a.dense_vectors, a.eg2_model, a.eg2_device, a.eg2_url, expect_n=ix.n)
+    eng = Engine(ix, dec, dense=dense, doc_level=a.doc_level)
     out = a.out or f"/tmp/taguri-out/{a.dataset}-{a.split}-{a.config}-{a.judge}"
     summ = run_split(eng, cfg, questions, qids, out, workers=a.workers if a.judge in ("sglang", "llama") else 4)
     run = {json.loads(l)["qid"]: json.loads(l)["retrieved"] for l in open(os.path.join(out, "run.jsonl"))}

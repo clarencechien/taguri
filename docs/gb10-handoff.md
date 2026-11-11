@@ -83,7 +83,7 @@ python tools/ingest_files.py --src /path/to/docs --out /path/to/store --name myd
 | `snowballstemmer` | 3.1.1 | 英文詞幹 |
 | `requests` | 任意近期版本 | 呼叫判官 |
 | `tokenizers` | 任意近期版本 | **只有 SGLang 路徑**需要 |
-| `sentence-transformers` ≥ 6.1、`transformers` ≥ 5.19、`torch`、`torchvision`、`pillow` | | **只有 EG2** 需要 |
+| `sentence-transformers` ≥ 6.1、`transformers` ≥ 5.19、`torch`、`torchvision`、`pillow` | | **只有 EG2** 需要。`torchvision` 少了模型會載入失敗 |
 
 Python 內建的 `sqlite3` 要有 FTS5（確認方式見階段 0）。
 
@@ -93,7 +93,7 @@ Python 內建的 `sqlite3` 要有 FTS5（確認方式見階段 0）。
 |---|---|---|
 | 判官（llama-server，GB10 的預設路徑） | `unsloth/gemma-4-26B-A4B-it-GGUF` 的 `gemma-4-26B-A4B-it-UD-Q4_K_M.gguf`（17 GB）。有空間的話再帶 `Q8_0`（27 GB） | 和 jevlike 的 GB10 文件同一組 |
 | 判官（SGLang，選配） | `RedHatAI/gemma-4-26B-A4B-it-FP8-dynamic` @ `ed35d7abe5d9` | 雲端實驗用的就是這個，重現性最好 |
-| EG2（選配） | `google/embeddinggemma-2` @ `914f7f89142e33e77833254d9c9b90c3cef7303b` | Apache 2.0，不需要金鑰。設 `HF_HUB_OFFLINE=1` |
+| EG2（要試企業文件、會議記錄這類語料就要帶） | `google/embeddinggemma-2` @ `914f7f89142e33e77833254d9c9b90c3cef7303b`，整個資料夾約 1.5 GB | Apache 2.0，不需要金鑰。把資料夾路徑給 `--eg2-model`，不用連外網。英文多跳題用不到 |
 
 llama.cpp 要 **≥ b11371**、arm64 + CUDA（sm_121）的 build。細節見 jevlike 的 `docs/handoff-gb10.md` 第 1 節。
 
@@ -326,30 +326,39 @@ python -m taguri.query --db /secure/taguri-store/idx/mydocs.db --doc-level \
 
 ### 階段 5　選配
 
-- **EG2**：只在「問法和文件用詞常常不同」或「中文問、英文文件」時值得試。企業文件的語意檢索上換到 +9.6 分，英文多跳題上沒有幫助。目前 EG2 的整合只在 Modal 入口（`modal_taguri.py`）裡，本機路徑要自己接：起 `taguri/dense_server.py`，再照 `modal_taguri.py` 裡 `DenseClient` 的用法把 `dense=` 傳給 `Engine`。先確認階段 1 到 4 再做。
+- **EG2**：只在「問法和文件用詞常常不同」或「中文問、英文文件」時值得試。企業文件的語意檢索上換到 +9.6 分，英文多跳題上沒有幫助。企業文件要追平上游的商用判官就得開（不開低 6.6 分，開了打平）。本機入口已經接好：先用 `python -m taguri.dense build --db <索引> --out <向量檔> --model <模型資料夾> --device cuda` 建向量，查詢時加 `--dense-vectors <向量檔> --eg2-model <模型資料夾>`，`taguri.run` 要把設定改成 `N1+EG2`。用法和驗過的範圍見 README 7.4 節與 [`results/b1-b4-b7.md`](../results/b1-b4-b7.md)。先確認階段 1 到 4 再做。
 - **繁中**：`data/` 裡沒有中文題組（翻譯後的語料沒有進 git）。要量繁中請直接用真實的繁中文件走階段 4。
 
 ## 6. 延遲太長時可以調的旋鈕
 
 複製一份 `results/thresholds.lock.json`，改副本，再用 `--lock <副本>` 執行。**每次只改一個**，在 MuSiQue 校準半（`--split calib`，150 題）上看分數掉多少，連同延遲一起報告。
 
-| 旋鈕（lock 副本裡的鍵） | 現值 | 試 | 已知的事 |
+| 旋鈕（lock 副本裡的鍵） | 現值 | 試 | 已知的事（雲端，MuSiQue 校準半與檢查半） |
 |---|---:|---|---|
-| `rejudge_each`（每輪重判幾段） | 20 | 10 | 10 沒量過。雲端上 20 和 30 沒有差別。完全不重判會掉 10 分，所以不要設 0 |
-| `chunk`（判證據的批次大小） | 5 | 10 | 依序送出的批次數減半，是對單題延遲最直接的旋鈕。雲端校準半上，批次 5 比 10 高約 1 到 2 分，比完全不分批高約 1 分 |
-| `rounds`（擴展輪數，副本裡加這個鍵） | 2 | 1 | 沒量過。判斷次數大約少三成。多跳題預期會掉分，單跳的查詢影響應該小 |
-| `K`（每輪召回幾段，副本裡加這個鍵） | 50 | 30 | 沒量過。判斷次數大約少三成 |
+| `rejudge_each`（每輪重判幾段） | 20 | 10 | 判斷次數 −11%，R@5 −0.9 與 −0.1，可用。降到 5 會掉 3 分。完全不重判會掉 10 分 |
+| `m`（證據池最多幾段，副本裡加這個鍵） | 8 | 5 | 次數不變，輸入 token −4% 到 −6%，分數沒有變差 |
+| `chunk`（判證據的批次大小） | 5 | 10 | 依序送出的批次數減半，是對單題延遲最直接的旋鈕。批次 5 比 10 高約 1 到 2 分 |
+| `rounds`（擴展輪數，副本裡加這個鍵） | 2 | 1 | 判斷次數 −28%。R@5 只掉 0.5 到 1.7 分，但全部找齊的題目少 3 到 7 個百分點 |
+| `K`（每輪召回幾段，副本裡加這個鍵） | 50 | 30 | 判斷次數 −29%。全部找齊的題目少約 5 個百分點 |
+
+前兩項合起來已經存成 `results/thresholds.lite.json`（判斷次數 −11%，token −17%，分數沒有可量測的差別），可以直接用 `--lock results/thresholds.lite.json`。完整的表在 [`results/b1-b4-b7.md`](../results/b1-b4-b7.md) 第 3 節。
 
 其他方向（還沒做，需要寫程式）：
 
 - 用小模型（E4B）先判、低信心才送 26B 的級聯。jevlike v3 在產線題上省了三分之二的 26B 負載。
-- 換詞彙檢索引擎或加查詢最佳化，處理十萬段以上的語料。
+- 十萬段以上的語料：查詢最佳化已經做了（154 萬段單獨一題的檢索約 4 秒）。同時服務很多人時加 `--lex-procs`。再往下要換檢索引擎。
 
 ## 7. 踩過的坑
 
 - **生成和讀機率的請求不要送到同一個 SGLang 伺服器的同一批**：雲端的 SGLang 版本會讓排程器當掉（`'list' object has no attribute 'tolist'`）。要同時做生成和判斷時分兩階段或兩個伺服器。llama-server 有沒有同樣的問題沒測過。
 - **長段落會超過 context**：已有證據 8 段、每段 2,000 字元時到過 17,776 token。現在已有證據會自動截到 10,000 token 以內。llama-server 路徑沒有 tokenizer，用「2 個字元算 1 個 token」估計，中文密度高的文件如果還是超長，把 `taguri/decide.py` 的 `EV_TOKEN_BUDGET` 調小。
 - **快取會讓延遲看起來是 0**：量延遲時不要給 `--cache-dir`。
+- **SQLite 的三個坑**（154 萬段時才看得出來，細節在 [`results/b1-b4-b7.md`](../results/b1-b4-b7.md) 第 1 節）：
+  - `WHERE fts MATCH ? AND rowid IN (...)` 會讓 SQLite 一筆 rowid 跑一次查詢，FTS5 每次都把所有查詢詞的文件頻率重算一遍。154 萬段時每筆 0.125 秒，兩百筆就是 25 秒。寫成 `+rowid IN (...)` 才會掃一次。現在的程式已經這樣寫，改檢索程式時不要改回去。
+  - 同一個行程的多個執行緒做計分查詢，在 16 核的機器上完全不會變快，反而每個查詢從 0.5 秒拖到 12 秒。加大分頁快取和開記憶體映射都沒有用。要同時服務很多個問題時用 `--lex-procs N` 開工作行程。只有一個人在問時不用管。
+  - SQLite 每回傳一列，執行緒就要重新搶一次 Python 的全域鎖。回傳很多列的查詢在多執行緒下會互相等。段落編號的清單已經改成在 SQLite 裡併成一列。
+  - 另外，bm25() 不能放在會被 SQLite 攤平的子查詢裡，會報「unable to use function bm25 in the requested context」。
+  - 改檢索程式之前先用 `tools/lexical_profile.py` 重放一份 trace，它不用 GPU，可以量每一步的時間，也可以比對改動前後的輸出是否相同。
 - **EG2 和判官搶同一張卡**：雲端 L40S 上要把 SGLang 的記憶體比例從 0.8 降到 0.72。GB10 記憶體大，應該沒有這個問題，但要確認。
 - **llama-server 的併發**：jevlike 在 L4 上量到 llama-server 多個 slot 並行不增加吞吐量。GB10 上 `--llama-parallel` 開大有沒有用要實測。沒有用就設 1，結果一樣。
 - **同分**：log-odds 會有同分（伺服器回傳的精度有限，llama-server 路徑還有截斷）。程式用 BM25 分數和段落編號當次要排序鍵，結果是確定的。
