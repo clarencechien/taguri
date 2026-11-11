@@ -1,4 +1,4 @@
-"""evalkit: retrieval metrics for SAG2POC (handoff §5.1 / §5.2).
+"""evalkit: retrieval metrics for Taguri POC (handoff §5.1 / §5.2).
 
 Written from the metric definitions only; imports nothing from any upstream benchmark code.
 """

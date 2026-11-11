@@ -1,0 +1,26 @@
+{
+ "_note": "S6 redo (v2). Calibrated once on the MuSiQue calibration half, checked on the check half. Not tuned on test, MultiHop-RAG or EnterpriseRAG. The first S6 lock is kept in thresholds.lock.v1.json.",
+ "zh_key": "tw2sp",
+ "weights": {
+  "title": 4.0,
+  "cjk_bigram": 1.0,
+  "cjk_word": 1.0,
+  "latin": 1.0,
+  "ids": 1.0
+ },
+ "anchor_bonus": 3.0,
+ "q3_variant": "I",
+ "layout": "L2",
+ "tau": -6.0,
+ "out_mode": "all_logodds",
+ "chunk": 5,
+ "rejudge_each": 20,
+ "min_pool": 2,
+ "zh": {
+  "_note": "Chinese corpora only (lang zh). Chosen on the Chinese calibration set (150 translated check-half questions), see results/s7d-zh-followup.md.",
+  "q3_variant_zh": "I",
+  "zh_cands": true,
+  "term_rank": "entity"
+ },
+ "q3_variant_zh": "I"
+}
