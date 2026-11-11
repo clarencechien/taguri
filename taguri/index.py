@@ -91,15 +91,36 @@ def build(corpus_path, db_path, analyzer: Analyzer, doc_field=None, log=print, w
     return {"passages": n, "build_s": round(time.time() - t0, 1), "db_bytes": os.path.getsize(db_path)}
 
 
+_PW = None  # the Index of a search worker process
+
+
+def _pw_init(db_path, weights):
+    global _PW
+    _PW = Index(db_path, None, weights)
+
+
+def _pw_search(keys, k, restrict):
+    return _PW._search_keys(keys, k, restrict)
+
+
 class Index:
     LOOKUP_MAX = 4      # restricted searches over more rowids than this use one filtered pass
     FULL_DEPTH = 200    # unrestricted searches are computed to at least this depth, then cached
     CACHE_QUERIES = 16  # result lists kept per thread
 
-    def __init__(self, db_path, analyzer: Analyzer, weights=None):
+    def __init__(self, db_path, analyzer: Analyzer, weights=None, procs=0):
+        """procs > 0: run the scoring queries in that many worker processes. Threads of one process do not speed
+        these queries up on every SQLite build (16 threads on a 16-core machine ran no faster than one); separate
+        processes do. Only worth it for large indexes with several questions in flight. Same results."""
         self.db_path, self.an = db_path, analyzer
         self.weights = dict(DEFAULT_WEIGHTS, **(weights or {}))
         self._tls = threading.local()
+        self._pool = None
+        if procs and procs > 0:
+            import multiprocessing as mp
+            from concurrent.futures import ProcessPoolExecutor
+
+            self._pool = ProcessPoolExecutor(procs, mp_context=mp.get_context("spawn"), initializer=_pw_init, initargs=(db_path, self.weights))
         self.n = int(self.con.execute("SELECT v FROM meta WHERE k='n'").fetchone()[0])
         self._df_cache = {}
 
@@ -112,6 +133,13 @@ class Index:
 
     def _bm25(self):
         return "bm25(fts, %s)" % ", ".join(str(float(self.weights[f])) for f in FIELDS)
+
+    # Every row SQLite hands back costs one release and re-acquire of Python's global lock. With many worker
+    # threads that adds up (a thread can wait milliseconds per row for a lock it needs for microseconds), so lists
+    # of row ids are folded into one string inside SQLite and split here. Integers only: nothing is rounded.
+    def _ints(self, sql, params=()):
+        r = self.con.execute(f"SELECT group_concat(x) FROM ({sql})", params).fetchone()[0]
+        return sorted(int(v) for v in r.split(",")) if r else []  # every caller's query yields ascending ids; sorting makes that independent of how SQLite orders the aggregate
 
     # ------------------------------------------------------------------ lookups
     def passage(self, rid):
@@ -128,6 +156,28 @@ class Index:
 
     def search_keys(self, keys, k=50, restrict=None):
         """-> [(rid, score)] best first; score is positive (higher is better)."""
+        if self._pool is None:
+            return self._search_keys(keys, k, restrict)
+        if restrict is not None:
+            restrict = list(dict.fromkeys(restrict))
+            if len(restrict) <= self.LOOKUP_MAX:
+                return self._search_keys(keys, k, restrict)
+            return self._pool.submit(_pw_search, list(keys), k, restrict).result()
+        cache = getattr(self._tls, "pfull", None)  # same per-thread cache as below, kept on this side of the process boundary
+        if cache is None:
+            cache = self._tls.pfull = {}
+        key = tuple(x for x in dict.fromkeys(keys) if x)
+        if not key:
+            return []
+        hit = cache.get(key)
+        if hit is None or hit[0] < k:
+            depth = max(k, self.FULL_DEPTH)
+            if len(cache) >= self.CACHE_QUERIES:
+                cache.pop(next(iter(cache)))
+            hit = cache[key] = (depth, self._pool.submit(_pw_search, list(key), depth, None).result())
+        return hit[1][:k]
+
+    def _search_keys(self, keys, k=50, restrict=None):
         keys = [x for x in dict.fromkeys(keys) if x]
         if not keys:
             return []
@@ -189,7 +239,7 @@ class Index:
                 if n == 1 and (gram[0][0] in STOP_EN or len(gram[0][0]) < 2 or gram[0][0].isdigit()):
                     continue
                 key = " ".join(g[0] for g in gram)
-                rids = [r[0] for r in self.con.execute("SELECT rid FROM title_lookup WHERE key=? LIMIT 200", (key,))]
+                rids = self._ints("SELECT rid AS x FROM title_lookup WHERE key=? LIMIT 200", (key,))
                 if rids:
                     hits.append({"key": key, "span": (gram[0][1], gram[-1][2]), "rids": rids, "kind": "title", "i": i, "n": n})
                     break  # longest match starting at i
@@ -200,7 +250,7 @@ class Index:
         for t in self.an.analyze(text).ids:
             if t.key.isdigit() and len(t.key) <= 4:
                 continue  # years and small numbers are not identifiers
-            rids = [r[0] for r in self.con.execute("SELECT rowid FROM fts WHERE fts MATCH ? LIMIT ?", ("ids : " + _q(t.key), id_df_cap + 1))]
+            rids = self._ints("SELECT rowid AS x FROM fts WHERE fts MATCH ? LIMIT ?", ("ids : " + _q(t.key), id_df_cap + 1))
             if 0 < len(rids) <= id_df_cap:
                 keep.append({"key": t.key, "span": (t.start, t.end), "rids": rids, "kind": "id"})
         for h in keep:
@@ -215,7 +265,7 @@ class Index:
         if not keys:
             return []
         phrase = '"' + " ".join(k.replace('"', '""') for k in keys) + '"'
-        return [r[0] for r in self.con.execute("SELECT rowid FROM fts WHERE fts MATCH ? LIMIT ?", (phrase, limit))]
+        return self._ints("SELECT rowid AS x FROM fts WHERE fts MATCH ? LIMIT ?", (phrase, limit))
 
     def phrase_df(self, keys):
         keys = tuple(x for x in keys if x)

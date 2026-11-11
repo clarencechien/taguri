@@ -83,7 +83,7 @@ if __name__ == "__main__":
     ap.add_argument("--dataset", default="enterprise"); ap.add_argument("--split", default="recall470")
     ap.add_argument("--trace", required=True); ap.add_argument("--n", type=int, default=40)
     ap.add_argument("--config", default="N1"); ap.add_argument("--doc-level", action="store_true")
-    ap.add_argument("--types"); ap.add_argument("--out"); ap.add_argument("--threads", type=int, default=1); ap.add_argument("--every", type=int, default=1, help="take every k-th question of the split")
+    ap.add_argument("--types"); ap.add_argument("--out"); ap.add_argument("--threads", type=int, default=1); ap.add_argument("--procs", type=int, default=0, help="search worker processes (Index(procs=...))"); ap.add_argument("--every", type=int, default=1, help="take every k-th question of the split")
     a = ap.parse_args()
     lock = load_lock(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", "thresholds.lock.json"))
     qs = load_questions(a.dataset, a.data_root); qids = load_split(a.dataset, a.split, a.data_root)
@@ -94,7 +94,7 @@ if __name__ == "__main__":
         for line in f:
             r = json.loads(line); traces[r["qid"]] = r
     qids = [q for q in qids if q in traces][::a.every][:a.n]
-    ix = Index(a.db, Analyzer(zh_key=lock.get("zh_key", "tw2sp")), lock.get("weights"))
+    ix = Index(a.db, Analyzer(zh_key=lock.get("zh_key", "tw2sp")), lock.get("weights"), procs=a.procs)
     T = collections.defaultdict(lambda: [0, 0.0])
     timed(ix, T)
     dec = ReplayDecider(traces)
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     t_all = time.perf_counter() - t_all
     walls, calls, rows = sorted(x[0] for x in res), [x[1] for x in res], [x[2] for x in res]
     n = len(walls)
-    print(f"{n} questions, {a.threads} thread(s), {t_all:.1f}s in all ({t_all / n:.2f}s per question of throughput). per question: median {walls[n // 2]:.2f}s  p90 {walls[int(n * 0.9)]:.2f}s  mean {sum(walls) / n:.2f}s  max {walls[-1]:.2f}s")
+    print(f"{n} questions, {a.threads} thread(s), {a.procs} search process(es), {t_all:.1f}s in all ({t_all / n:.2f}s per question of throughput). per question: median {walls[n // 2]:.2f}s  p90 {walls[int(n * 0.9)]:.2f}s  mean {sum(walls) / n:.2f}s  max {walls[-1]:.2f}s")
     print(f"replayed judge calls per question: mean {sum(calls) / n:.0f}; replay misses: {dict(dec.miss)}")
     print("| Index 方法 | 每題呼叫次數 | 每題秒數 | 每次毫秒 |\n|---|---:|---:|---:|")
     for k, (c, s) in sorted(T.items(), key=lambda kv: -kv[1][1]):
