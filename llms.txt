@@ -90,6 +90,8 @@ python -m taguri.run --config N0 --dataset musique --split dev
 
 ## 要做成產品還缺什麼
 
+Taguri 只做檢索，交出 10 段和分數。寫答案（含引用、找不到時說找不到）、文件解析、權限過濾、API 都還沒有。清單在 TODO.md 的 F 節。
+
 依重要性。細節和「做完怎麼算數」在 TODO.md。
 
 1. GB10 上的單題延遲實測（TODO A3）。這會決定能不能互動使用。
